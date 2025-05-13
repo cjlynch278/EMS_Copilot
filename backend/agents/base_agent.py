@@ -1,6 +1,9 @@
 import requests
 import json
-import google.generativeai as genai
+from google import genai
+from google.genai import types
+import os
+
 
 class BaseAgent:
     """
@@ -8,67 +11,98 @@ class BaseAgent:
     This class provides a foundation for other agents to inherit from.
     """
 
-    def __init__(self, gemini_api_key, gemini_url, model):
+    def __init__(self, gemini_api_key, gemini_model):
         """
-        Initialize the BaseAgent with the API key and Gemini API URL.
+        Initialize the BaseAgent with the API key.
         """
         self.gemini_api_key = gemini_api_key
-        self.gemini_url = gemini_url
-        genai.configure(api_key=self.gemini_api_key)
-        self.client = genai.GenerativeModel(model)
+        self.gemini_model = gemini_model
+        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 
-
-    def call_gemini(self, user_prompt, system_prompt=None, functions=None):
+    def call_gemini(self, user_prompt=None, system_prompt=None, functions=None):
         """
-        Make a call to the Gemini API using the provided user prompt, system prompt, and optional functions.
+        Call the Gemini API with optional user prompt, system prompt, and functions.
+
+        Args:
+            user_prompt (str): The user prompt to include in the API call.
+            system_prompt (str): The system prompt to include in the API call.
+            functions (list): A list of function declarations to include in the API call.
+
+        Returns:
+            dict: The response from the Gemini API.
         """
-    
+        # Initialize the client
+        client = genai.Client(api_key=self.gemini_api_key)
 
-        headers = {
-            "Content-Type": "application/json",
-        }
-
-        # Base payload with user and system prompts
-        payload = {
-            "contents": []
-        }
-        prompt = ""
-        if system_prompt:
-            prompt += f"{system_prompt}\n"
-        
-        if user_prompt:
-            prompt += f"{user_prompt}\n"
-
-        # Add prompts to the payload
-        payload["contents"].append({
-            "parts": [{"text": f"{prompt}" }]
-        })
-
-
-        # Add functions to the payload if provided
+        # Setup config and tools only if functions are provided
+        config = None
         if functions:
-            payload["tools"] = [
-                {
-                    "functionDeclarations": functions
-                }
-            ]
+            tools = types.Tool(function_declarations=functions)
+            config = types.GenerateContentConfig(tools=[tools])
 
-        # Debugging: Print the payload
-        print(f"Payload: {json.dumps(payload, indent=2)}")
+        # Build the contents
+        contents = []
 
-        try:
-            # Make the POST request
-            response = requests.post(
-                f"{self.gemini_url}?key={self.gemini_api_key}",
-                headers=headers,
-                data=json.dumps(payload),
+        # Add user prompt
+        if user_prompt:
+            contents.append(
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part(
+                            text=user_prompt
+                        )
+                    ]
+                )
             )
 
-            # Raise an exception for HTTP errors
-            response.raise_for_status()
+        # Add system prompt
+        if system_prompt:
+            contents.append(
+                types.Content(
+                    role="model",
+                    parts=[
+                        types.Part(
+                            text=system_prompt
+                        )
+                    ]
+                )
+            )
 
-            # Parse and return the response
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            print(f"Error while calling Gemini API: {e}")
-            return None
+        # Make the API call
+        try:
+            if config:
+                response = client.models.generate_content(
+                    model=self.gemini_model,
+                    config=config,
+                    contents=contents
+                )
+            else:
+                response = client.models.generate_content(
+                    model=self.gemini_model,
+                    contents=contents
+                )
+
+            return response
+
+        except Exception as e:
+            return str(e)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

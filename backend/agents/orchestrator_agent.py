@@ -7,7 +7,6 @@ root_dir = Path(curr_dir.parents[0])
 sys.path.append(str(root_dir))
 
 from agents.base_agent import BaseAgent
-import json
 
 
 class OrchestratorAgent(BaseAgent):
@@ -16,26 +15,23 @@ class OrchestratorAgent(BaseAgent):
     Inherits from BaseAgent to handle Gemini API calls.
     """
 
-    def __init__(self, gemini_api_key, gemini_url):
+    def __init__(self, gemini_api_key, gemini_model):
         """
         Initialize the OrchestratorAgent with the API key and Gemini API URL.
         """
-        super().__init__(gemini_api_key, gemini_url)  # Initialize BaseAgent
+        super().__init__(gemini_api_key, gemini_model=gemini_model)  # Initialize BaseAgent
         self.name = "OrchestratorAgent"
+        self.gemini_model = gemini_model
         self.description = "An agent that orchestrates the interaction between other agents."
-        print(f"OrchestratorAgent initialized with API key: {self.gemini_api_key} and URL: {self.gemini_url}")
-        print(f"OrchestratorAgent initialized with name: {self.name} and description: {self.description}")
+        self.gemini_api_key = gemini_api_key
+
+        self.system_prompt = ""
     def orchestrate(self, user_prompt):
         """
         Orchestrate the interaction by analyzing the user prompt and routing it to the appropriate agent.
         """
         # Define the system prompt
-        system_prompt = """You are an AI orchestrator agent embedded in an ambulance's digital copilot system. 
-            Your role is to interpret natural language from EMTs and route the request to the appropriate specialized agent. 
-            You do not answer questions directly. Instead, you must always return a function name and parameters to call the correct agent.
 
-            If the user prompt is unclear, make a best guess based on the available agents and their descriptions. Always return a function name and parameters.
-            """
         functions = [
             {
                 "name": "gps_agent",
@@ -83,6 +79,5 @@ class OrchestratorAgent(BaseAgent):
         ]
 
         # Call the Gemini API with functions
-        response = self.call_gemini(user_prompt, system_prompt, functions=functions)
-        if response:
-            print("Response from Gemini API:", json.dumps(response, indent=2))
+        response = self.call_gemini(user_prompt, self.system_prompt, functions=functions)
+        return response
