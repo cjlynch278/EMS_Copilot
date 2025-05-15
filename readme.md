@@ -1,0 +1,1 @@
+You will need to run gcloud init and gcloud auth application-default login
