@@ -29,7 +29,6 @@ class GPSAgent(BaseAgent):
         self.system_prompt = "You are a GPS agent. You can provide directions, ETA, and address" \
         "You will be given a question, you will need to answer it given the info you are given in the prompt." \
         "Be concise with your answer. No need to remind this user that you are a non emergency agent."
-        print(f"GPSAgent initialized with api_key: {self.gemini_api_key} and model: {self.gemini_model}")
     def call_gps(self, question):
         """
         Orchestrate the interaction by analyzing the user prompt and routing it to the appropriate agent.
