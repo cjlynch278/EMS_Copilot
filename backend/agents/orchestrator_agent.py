@@ -26,7 +26,6 @@ class OrchestratorAgent(BaseAgent):
         self.description = "An agent that orchestrates the interaction between other agents."
         self.gemini_api_key = gemini_api_key
         google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY")
-        print(f"Maps key {google_maps_api_key}")
         self.gps_agent = GPSAgent(gemini_api_key, gemini_model, google_maps_api_key)
 
         self.system_prompt = ""
