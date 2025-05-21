@@ -6,6 +6,9 @@ from pathlib import Path
 curr_dir = Path(os.getcwd())
 root_dir = Path(curr_dir.parents[0])
 sys.path.append(str(root_dir))
+from db.firestore_db import FirestoreDB
+from utils.general_utils import * 
+
 
 from agents.base_agent import BaseAgent
 
@@ -16,27 +19,32 @@ class VitalsAgent(BaseAgent):
     This agent will be used to track trending patient vitals and provide information about them.
     """
 
-    def __init__(self, gemini_api_key, gemini_model, firebase_credentials_path, firebase_collection_name="vitals"):
+    def __init__(self, gemini_api_key, firebase_credentials_path, firebase_collection_name="vitals"):
 
         """
         Initialize the Vitals_Agent with the API key and Gemini API URL.
         This agent will be used to track trending patient vitals and provide information about them.
         """
 
-        super().__init__(gemini_api_key, gemini_model=gemini_model)  # Initialize BaseAgent
+        super().__init__(gemini_api_key)  # Initialize BaseAgent
         self.name = "Vitals_Agent"
-        self.gemini_model = gemini_model
         self.description = "An agent that provides vitals related functionalities."
+        self.firestore_db = FirestoreDB(os.getenv("FIRESTORE_CREDENTIALS_PATH"))
+
 
         self.gemini_api_key = gemini_api_key
-        self.system_prompt = "You are a Vitals agent. You can provide vitals related functionalities." \
-        "You will be given a question, you will need to answer it given the info you are given in the prompt." \
-        "Be concise with your answer. No need to remind this user that you are a non emergency agent."
+        self.system_prompt  = (
+            "You are a Vitals agent. Your role is to manage patient vitals. "
+            "When given a input or statement, determine the appropriate action and invoke the corresponding function. "
+            "Do not generate any natural language responses. "
+            "If the input contains vitals data, invoke the 'write_vitals' function with the provided data. "
+            "Only return the function call and its arguments. Do not include any text."
+        )
     
-    def call_vitals_agent(self, question):
+    def call_vitals_agent(self, input):
         """
-        Call the Vitals agent with the given question.
-        This method will be used to call the Vitals agent with the given question.
+        Call the Vitals agent with the given input.
+        This method will be used to call the Vitals agent with the given input.
         """
         functions = [
         {
@@ -45,10 +53,7 @@ class VitalsAgent(BaseAgent):
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "patient_id": {
-                        "type": "string",
-                        "description": "The ID of the patient."
-                    },
+
                     "vitals_name": {
                         "type": "string",
                         "description": "The type of vital being recorded (heart rate, bp, o2)."
@@ -63,10 +68,10 @@ class VitalsAgent(BaseAgent):
                     },
                     "timestamp": {
                         "type": "string",
-                        "description": "The timestamp of the vitals data in ISO 8601 format. The timestamp should be now if not specified."
+                        "description": "The timestamp of the vitals data in ISO 8601 format. The timestamp should be the current time if not specified."
                     }
                 },
-                "required": ["patient_id", "vitals_name", "vitals_value", "timestamp"]
+                "required": [ "vitals_name", "vitals_value", "timestamp"]
             }
         },
         {
@@ -99,9 +104,16 @@ class VitalsAgent(BaseAgent):
         }
     ]
 
+        # Get current time: 
+        try:
+            current_time = get_time()
+        except Exception as e:
+            print(f"Error getting current time: {e}")
 
         try:
-            response = self.call_gemini(self.system_prompt, question, functions = functions)
+            user_prompt = f"Perform the following action: {input}. \n The current time is {current_time}."
+            response = self.call_gemini( system_prompt=self.system_prompt, user_prompt=user_prompt, functions=functions)
+            handle_response = self.handle_response(response=response)
             return response
         except Exception as e:
             print(f"Error calling Vitals agent: {e}")
@@ -134,3 +146,25 @@ class VitalsAgent(BaseAgent):
         except Exception as e:
             print(f"Error retrieving vitals: {e}")
             return None
+        
+
+
+    def handle_response(self, response):
+        """
+        Handle the response from the Gemini API and execute the appropriate function.
+        """
+        try:
+            # Extract the function call from the response
+            function_call = response.candidates[0].content.parts[0].function_call
+
+            if function_call and function_call.name == "write_vitals":
+                # Extract arguments for the write_vitals function
+                vitals_data = function_call.args
+
+                # Execute the write_vitals function
+                self.write_vitals(vitals_data)
+                print(f"Vitals data written successfully: {vitals_data}")
+            else:
+                print("No valid function call detected in the response.")
+        except Exception as e:
+            print(f"Error handling response: {e}")

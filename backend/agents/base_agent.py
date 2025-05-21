@@ -11,12 +11,12 @@ class BaseAgent:
     This class provides a foundation for other agents to inherit from.
     """
 
-    def __init__(self, gemini_api_key, gemini_model):
+    def __init__(self, gemini_api_key):
         """
         Initialize the BaseAgent with the API key.
         """
         self.gemini_api_key = gemini_api_key
-        self.gemini_model = gemini_model
+        self.gemini_model = os.getenv("GEMINI_MODEL")
         os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 
     def call_gemini(self, user_prompt=None, system_prompt=None, functions=None):
@@ -83,9 +83,14 @@ class BaseAgent:
                     contents=contents
                 )
 
+            print("Response received from Gemini API.")
+            # Print the response
+            print(response)
+            
             return response
 
         except Exception as e:
+            print(f"Error calling Gemini API: {e}")
             return str(e)
 
 

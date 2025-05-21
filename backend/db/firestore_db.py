@@ -1,6 +1,12 @@
 import firebase_admin
 from firebase_admin import credentials, firestore
 
+# Path to your downloaded service account key
+cred = credentials.Certificate("/Users/206801024/Projects/keys/ems-c-459423-738f5d1ae429.json")
+firebase_admin.initialize_app(cred)
+
+db = firestore.client()
+
 class FirestoreDB:
     def __init__(self, credentials_path):
         """
@@ -14,7 +20,6 @@ class FirestoreDB:
         Initialize the Firestore client.
         """
         cred = credentials.Certificate(self.credentials_path)
-        firebase_admin.initialize_app(cred)
         self.db = firestore.client()
 
     def write_vitals(self, collection_name, vitals_data):
@@ -22,9 +27,10 @@ class FirestoreDB:
         Write vitals data to Firestore.
         """
         try:
-            doc_ref = self.db.collection(collection_name).document(vitals_data["patient_id"])
+            print("writing to collection: ", collection_name)
+            doc_ref = self.db.collection(collection_name).document()
             doc_ref.set(vitals_data)
-            print(f"Vitals for patient {vitals_data['patient_id']} written successfully.")
+            print(f"Vitals for patient {vitals_data['patient_name']} written successfully.")
         except Exception as e:
             raise Exception(f"Failed to write vitals to Firestore: {e}")
 
