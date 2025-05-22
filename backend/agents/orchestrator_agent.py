@@ -33,12 +33,14 @@ class OrchestratorAgent(BaseAgent):
         self.vitals_agent = VitalsAgent(gemini_api_key, self.firebase_credentials_path)
 
         self.system_prompt = "Don't worry too much about clarification. You are an orchestrator agent,simply route the user to the correct agent. " 
+        self.memory = []
     def orchestrate(self, user_prompt):
         """
         Orchestrate the interaction by analyzing the user prompt and routing it to the appropriate agent.
         """
         # Define the system prompt
 
+        self.memory.append(user_prompt)
         functions = [
             {
                 "name": "gps_agent",
@@ -115,12 +117,14 @@ class OrchestratorAgent(BaseAgent):
         # Call the Gemini API with functions
         try:
             response = self.call_gemini(user_prompt, self.system_prompt, functions=functions)
+
         except Exception as e:
             print(f"Error calling Gemini API: {e}")
             return None
         # Handle the response
         response = self.get_agent_response(response)
-        
+        self.memory.append({"role": "agent", "content": response})
+
         return response
     
     def get_agent_response(self, response):
@@ -141,3 +145,17 @@ class OrchestratorAgent(BaseAgent):
 
             response = self.vitals_agent.call_vitals_agent(input_data)
             return response
+        
+    def run(self):
+        """
+        Run the orchestrator in a loop to handle multiple user inputs.
+        """
+        print("Orchestrator is running. Type 'exit' to stop.")
+        while True:
+            user_prompt = input("You: ")
+            if user_prompt.lower() == "exit":
+                print("Exiting orchestrator.")
+                break
+
+            response = self.orchestrate(user_prompt)
+            print(f"Agent: {response}")

@@ -123,9 +123,27 @@ class VitalsAgent(BaseAgent):
         Write vitals data to Firestore.
         """
         try:
+            # Write the vitals data to the Firestore 'vitals' collection
             self.firestore_db.write_vitals("vitals", json_vitals_data)
+
+            # Construct the response
+            response = {
+                "status": "success",
+                "entry": {
+                    "type": json_vitals_data.get("vitals_name"),
+                    "value": json_vitals_data.get("vitals_value"),
+                    "timestamp": json_vitals_data.get("timestamp")
+                },
+                "message": f"{json_vitals_data.get('vitals_name').capitalize()} recorded successfully."
+            }
+
+            return response
         except Exception as e:
             print(f"Error writing vitals: {e}")
+            return {
+                "status": "error",
+                "message": f"Failed to record {json_vitals_data.get('vitals_name')}. Error: {str(e)}"
+            }
 
     def get_vitals(self, patient_id):
         """
@@ -162,9 +180,12 @@ class VitalsAgent(BaseAgent):
                 vitals_data = function_call.args
 
                 # Execute the write_vitals function
-                self.write_vitals(vitals_data)
+                response = self.write_vitals(vitals_data)
                 print(f"Vitals data written successfully: {vitals_data}")
+                return response
             else:
                 print("No valid function call detected in the response.")
+                return None
         except Exception as e:
             print(f"Error handling response: {e}")
+            return None
