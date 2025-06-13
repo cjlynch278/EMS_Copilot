@@ -1,11 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from agents.chroma_agent import ChromaAgent
-from agents.sql_agent import SQLAgent
-from agents.triage_agent import TriageAgent
-from agents.vitals_agent import VitalsAgent
-from agents.route_agent import RouteAgent
-from agents.openai_agent import OpenAIAgent
+from ems_copilot.domain.services.chroma_agent import ChromaAgent
+from ems_copilot.domain.services.sql_agent import SQLAgent
+from ems_copilot.domain.services.triage_agent import TriageAgent
+from ems_copilot.domain.services.vitals_agent import VitalsAgent
+from ems_copilot.domain.services.route_agent import RouteAgent
+from ems_copilot.domain.services.openai_agent import OpenAIAgent
 import logging
 
 app = FastAPI()

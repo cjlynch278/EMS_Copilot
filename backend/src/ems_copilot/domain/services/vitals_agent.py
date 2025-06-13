@@ -1,16 +1,10 @@
-import sys
 import os
 import json
 import requests
 from pathlib import Path
-curr_dir = Path(os.getcwd())
-root_dir = Path(curr_dir.parents[0])
-sys.path.append(str(root_dir))
-from db.firestore_db import FirestoreDB
-from utils.general_utils import * 
-
-
-from agents.base_agent import BaseAgent
+from ems_copilot.infrastructure.database.firestore_db import FirestoreDB
+from ems_copilot.infrastructure.utils.general_utils import *
+from ems_copilot.domain.services.base_agent import BaseAgent
 
 
 class VitalsAgent(BaseAgent):

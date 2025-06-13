@@ -1,3 +1,4 @@
+import os
 import firebase_admin
 from firebase_admin import credentials, firestore
 
@@ -20,6 +21,7 @@ class FirestoreDB:
         Initialize the Firestore client.
         """
         cred = credentials.Certificate(self.credentials_path)
+        firebase_admin.initialize_app(cred)
         self.db = firestore.client()
 
     def write_vitals(self, collection_name, vitals_data):
