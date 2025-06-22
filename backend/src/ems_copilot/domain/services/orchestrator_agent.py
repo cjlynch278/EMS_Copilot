@@ -1,14 +1,8 @@
-import sys
 import os
 import json
-from pathlib import Path
-curr_dir = Path(os.getcwd())
-root_dir = Path(curr_dir.parents[0])
-sys.path.append(str(root_dir))
-
-from agents.base_agent import BaseAgent
-from agents.gps_agent import GPSAgent
-from agents.vitals_agent import VitalsAgent
+from ems_copilot.domain.services.base_agent import BaseAgent
+from ems_copilot.domain.services.gps_agent import GPSAgent
+from ems_copilot.domain.services.vitals_agent import VitalsAgent
 
 
 class OrchestratorAgent(BaseAgent):
@@ -17,7 +11,7 @@ class OrchestratorAgent(BaseAgent):
     Inherits from BaseAgent to handle Gemini API calls.
     """
 
-    def __init__(self, gemini_api_key):
+    def __init__(self, gemini_api_key, firebase_credentials_path=None):
         """
         Initialize the OrchestratorAgent with the API key and Gemini API URL.
         """
@@ -25,7 +19,13 @@ class OrchestratorAgent(BaseAgent):
         self.name = "OrchestratorAgent"
         self.description = "An agent that orchestrates the interaction between other agents."
         self.gemini_api_key = gemini_api_key
-        self.firebase_credentials_path = os.getenv("FIRESTORE_CREDENTIALS_PATH")
+        
+        # Use provided credentials path or fall back to environment variable
+        if firebase_credentials_path is None:
+            self.firebase_credentials_path = os.getenv("FIRESTORE_CREDENTIALS_PATH")
+        else:
+            self.firebase_credentials_path = firebase_credentials_path
+            
         google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY")
 
         # Initialize agents

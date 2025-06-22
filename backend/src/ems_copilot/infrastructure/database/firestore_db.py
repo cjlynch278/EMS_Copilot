@@ -2,11 +2,8 @@ import os
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# Path to your downloaded service account key
-cred = credentials.Certificate("/Users/206801024/Projects/keys/ems-c-459423-738f5d1ae429.json")
-firebase_admin.initialize_app(cred)
-
-db = firestore.client()
+# Global flag to track if Firebase has been initialized
+_firebase_initialized = False
 
 class FirestoreDB:
     def __init__(self, credentials_path):
@@ -20,8 +17,23 @@ class FirestoreDB:
         """
         Initialize the Firestore client.
         """
-        cred = credentials.Certificate(self.credentials_path)
-        firebase_admin.initialize_app(cred)
+        global _firebase_initialized
+        
+        if not _firebase_initialized:
+            try:
+                cred = credentials.Certificate(self.credentials_path)
+                firebase_admin.initialize_app(cred)
+                _firebase_initialized = True
+                print("Firebase Admin SDK initialized successfully")
+            except Exception as e:
+                if "already initialized" in str(e).lower():
+                    print("Firebase Admin SDK already initialized")
+                    _firebase_initialized = True
+                else:
+                    raise e
+        else:
+            print("Firebase Admin SDK already initialized")
+        
         self.db = firestore.client()
 
     def write_vitals(self, collection_name, vitals_data):

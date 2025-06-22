@@ -23,7 +23,7 @@ class VitalsAgent(BaseAgent):
         super().__init__(gemini_api_key)  # Initialize BaseAgent
         self.name = "Vitals_Agent"
         self.description = "An agent that provides vitals related functionalities."
-        self.firestore_db = FirestoreDB(os.getenv("FIRESTORE_CREDENTIALS_PATH"))
+        self.firestore_db = FirestoreDB(firebase_credentials_path)
 
 
         self.gemini_api_key = gemini_api_key

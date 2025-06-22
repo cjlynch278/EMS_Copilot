@@ -7,7 +7,7 @@ curr_dir = Path(os.getcwd())
 root_dir = Path(curr_dir.parents[0])
 sys.path.append(str(root_dir))
 
-from agents.base_agent import BaseAgent
+from ems_copilot.domain.services.base_agent import BaseAgent
 
 
 class GPSAgent(BaseAgent):
