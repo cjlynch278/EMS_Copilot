@@ -4,3 +4,4 @@
 # Ignore Python bytecode files in the backend folder
 /backend/__pycache__/
 /backend/*.pyc
+/backend/dev/sandbox.ipynb
