@@ -71,3 +71,6 @@ google-api-core==2.24.2
 google-auth==2.38.0
 google-auth-httplib2==0.2.0
 google-genai==1.9.0
+streamlit>=1.28.0
+requests>=2.31.0
+websocket-client>=1.6.0 

@@ -31,8 +31,8 @@ class OrchestratorAgent(BaseAgent):
         # Initialize agents
         self.gps_agent = GPSAgent(gemini_api_key, google_maps_api_key)
         self.vitals_agent = VitalsAgent(gemini_api_key, self.firebase_credentials_path)
-
-        self.system_prompt = "Don't worry too much about clarification. You are an orchestrator agent,simply route the user to the correct agent. " 
+        #update this system prompt to stop
+        self.system_prompt = "You are an orchestrator agent for an EMS system. You MUST ALWAYS use a function call to route user queries to the appropriate agent. Never respond with text directly. Use gps_agent for location/direction queries, vitals_agent for patient vitals, weather_agent for weather queries, sql_agent for database queries, and triage_agent for patient symptoms. ALWAYS call one of these functions."
         self.memory = []
     def orchestrate(self, user_prompt):
         """
@@ -116,7 +116,9 @@ class OrchestratorAgent(BaseAgent):
 
         # Call the Gemini API with functions
         try:
-            response = self.call_gemini(user_prompt, self.system_prompt, functions=functions)
+            # Combine system prompt with user prompt for better clarity
+            combined_prompt = f"{self.system_prompt}\n\nUser query: {user_prompt}"
+            response = self.call_gemini(combined_prompt, functions=functions)
 
         except Exception as e:
             print(f"Error calling Gemini API: {e}")
@@ -131,21 +133,51 @@ class OrchestratorAgent(BaseAgent):
         """
         Get the response from the specified agent with the given parameters.
         """
-        agent_name = response.candidates[0].content.parts[0].function_call.name
-        parameters = response.candidates[0].content.parts[0].function_call.args
-        if agent_name == "gps_agent":
-            question = parameters["question"]
-
-            # Call the GPS agent with the question
-            response = self.gps_agent.call_gps(question)
-            return response
-        if agent_name == "vitals_agent":
-            input_data = parameters["input"]
-
-
-            response = self.vitals_agent.call_vitals_agent(input_data)
-            return response
+        print("--------------------------------")
+        print(response)
+        print("--------------------------------")
         
+        try:
+            # Check if response has the expected structure and function call
+            if (not response or 
+                not response.candidates or 
+                not response.candidates[0] or 
+                not response.candidates[0].content or 
+                not response.candidates[0].content.parts or 
+                not response.candidates[0].content.parts[0] or 
+                not response.candidates[0].content.parts[0].function_call):
+                
+                print("No function call found in response")
+                return "I understand your query, but I need to route it to a specific agent. Please try asking about: patient vitals (e.g., 'record heart rate'), GPS directions (e.g., 'get directions to hospital'), weather (e.g., 'what's the weather'), database queries, or patient triage (e.g., 'patient has chest pain')."
+            
+            agent_name = response.candidates[0].content.parts[0].function_call.name
+            parameters = response.candidates[0].content.parts[0].function_call.args
+            
+            if agent_name == "gps_agent":
+                question = parameters["question"]
+                # Call the GPS agent with the question
+                response = self.gps_agent.call_gps(question)
+                return response
+            elif agent_name == "vitals_agent":
+                input_data = parameters["input"]
+                response = self.vitals_agent.call_vitals_agent(input_data)
+                return response
+            elif agent_name == "weather_agent":
+                location = parameters["location"]
+                return f"Weather agent would get weather for: {location}"
+            elif agent_name == "sql_agent":
+                query = parameters["query"]
+                return f"SQL agent would execute: {query}"
+            elif agent_name == "triage_agent":
+                symptoms = parameters["symptoms"]
+                return f"Triage agent would assess symptoms: {symptoms}"
+            else:
+                return f"Unknown agent: {agent_name}"
+                
+        except Exception as e:
+            print(f"Error in get_agent_response: {e}")
+            return f"Sorry, I encountered an error processing your request: {str(e)}"
+    
     def run(self):
         """
         Run the orchestrator in a loop to handle multiple user inputs.

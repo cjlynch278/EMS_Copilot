@@ -56,11 +56,11 @@ class BaseAgent:
                 )
             )
 
-        # Add system prompt
+        # Add system prompt (if provided separately)
         if system_prompt:
             contents.append(
                 types.Content(
-                    role="model",
+                    role="user",
                     parts=[
                         types.Part(
                             text=system_prompt

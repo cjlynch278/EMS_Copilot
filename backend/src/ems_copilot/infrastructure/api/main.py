@@ -7,6 +7,9 @@ import os
 
 app = FastAPI()
 
+print(os.getenv("GEMINI_API_KEY"))
+print("firestore credentials path")
+print(os.getenv("FIRESTORE_CREDENTIALS_PATH"))
 # Initialize orchestrator agent
 orchestrator_agent = OrchestratorAgent(
     gemini_api_key=os.getenv("GEMINI_API_KEY"),
@@ -66,7 +69,7 @@ async def websocket_endpoint(websocket: WebSocket):
 async def route_query(request: QueryRequest):
     print("--------------------")
     logging.info(f"Received query: {request.query}")
-    
+    print('routing query')
     try:
         response = orchestrator_agent.orchestrate(request.query)
         return {"response": response}
