@@ -38,7 +38,7 @@ class GPSAgent(BaseAgent):
         # Call the Gemini API with functions
         gps_user_prompt = f"Current location: {current_location}. Question: {question}"
         print(f"GPS User Prompt: {gps_user_prompt}")
-        response = self.call_gemini(user_prompt=gps_user_prompt, system_prompt=self.system_prompt, functions=None)
+        response = self.call_gemini(user_prompt=gps_user_prompt, system_prompt=self.system_prompt, functions=None, return_text=True)
         return response
 
     def get_current_location(self):

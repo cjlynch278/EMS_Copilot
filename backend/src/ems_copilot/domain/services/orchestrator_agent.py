@@ -3,6 +3,8 @@ import json
 from ems_copilot.domain.services.base_agent import BaseAgent
 from ems_copilot.domain.services.gps_agent import GPSAgent
 from ems_copilot.domain.services.vitals_agent import VitalsAgent
+from ems_copilot.domain.services.triage_agent import TriageAgent
+from ems_copilot.infrastructure.database.conversation_history import ConversationHistory
 
 
 class OrchestratorAgent(BaseAgent):
@@ -31,9 +33,12 @@ class OrchestratorAgent(BaseAgent):
         # Initialize agents
         self.gps_agent = GPSAgent(gemini_api_key, google_maps_api_key)
         self.vitals_agent = VitalsAgent(gemini_api_key, self.firebase_credentials_path)
+        self.triage_agent = TriageAgent(gemini_api_key, self.firebase_credentials_path)
         #update this system prompt to stop
-        self.system_prompt = "You are an orchestrator agent for an EMS system. You MUST ALWAYS use a function call to route user queries to the appropriate agent. Never respond with text directly. Use gps_agent for location/direction queries, vitals_agent for patient vitals, weather_agent for weather queries, sql_agent for database queries, and triage_agent for patient symptoms. ALWAYS call one of these functions."
+        self.system_prompt = "You are an orchestrator agent for an EMS system. You MUST ALWAYS use a function call to route user queries to the appropriate agent. Never respond with text directly. Use gps_agent for location/direction queries, vitals_agent for patient vitals, weather_agent for weather queries, sql_agent for database queries, and triage_agent for patient symptoms or contextual assessments (like 'what's wrong', 'assess patient', etc.). ALWAYS call one of these functions."
         self.memory = []
+        self.conversation_history = ConversationHistory()
+
     def orchestrate(self, user_prompt):
         """
         Orchestrate the interaction by analyzing the user prompt and routing it to the appropriate agent.
@@ -100,13 +105,13 @@ class OrchestratorAgent(BaseAgent):
             },
             {
                 "name": "triage_agent",
-                "description": "Perform triage on a patient.",
+                "description": "Perform triage on a patient. Can handle explicit symptoms or contextual queries like 'what's wrong', 'assess patient', etc.",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "symptoms": {
                             "type": "string",
-                            "description": "The symptoms of the patient."
+                            "description": "The symptoms of the patient or contextual query. Can be explicit symptoms or queries like 'what's wrong', 'assess patient', etc."
                         }
                     },
                     "required": ["symptoms"]
@@ -126,6 +131,16 @@ class OrchestratorAgent(BaseAgent):
         # Handle the response
         response = self.get_agent_response(response)
         self.memory.append({"role": "agent", "content": response})
+        
+        # Store in conversation history
+        patient_name = self._extract_patient_name(user_prompt)
+        self.conversation_history.add_conversation(
+            user_query=user_prompt,
+            agent_response=response,
+            patient_name=patient_name,
+            metadata={"agent": "orchestrator", "response_type": "routed"},
+            conversation_type="orchestration"
+        )
 
         return response
     
@@ -133,9 +148,7 @@ class OrchestratorAgent(BaseAgent):
         """
         Get the response from the specified agent with the given parameters.
         """
-        print("--------------------------------")
-        print(response)
-        print("--------------------------------")
+
         
         try:
             # Check if response has the expected structure and function call
@@ -155,13 +168,12 @@ class OrchestratorAgent(BaseAgent):
             
             if agent_name == "gps_agent":
                 question = parameters["question"]
-                # Call the GPS agent with the question
-                response = self.gps_agent.call_gps(question)
-                return response
+                # Call the GPS agent with the question - now returns clean text
+                return self.gps_agent.call_gps(question)
             elif agent_name == "vitals_agent":
                 input_data = parameters["input"]
-                response = self.vitals_agent.call_vitals_agent(input_data)
-                return response
+                # Call the Vitals agent - now returns clean text or structured response
+                return self.vitals_agent.call_vitals_agent(input_data)
             elif agent_name == "weather_agent":
                 location = parameters["location"]
                 return f"Weather agent would get weather for: {location}"
@@ -170,7 +182,8 @@ class OrchestratorAgent(BaseAgent):
                 return f"SQL agent would execute: {query}"
             elif agent_name == "triage_agent":
                 symptoms = parameters["symptoms"]
-                return f"Triage agent would assess symptoms: {symptoms}"
+                # Call the Triage agent - now supports both explicit symptoms and contextual assessment
+                return self.triage_agent.call_triage_agent(symptoms)
             else:
                 return f"Unknown agent: {agent_name}"
                 
@@ -190,4 +203,31 @@ class OrchestratorAgent(BaseAgent):
                 break
 
             response = self.orchestrate(user_prompt)
-            print(f"Agent: {response}")
+            print(f"Agent: {response}")    def _extract_patient_name(self, text: str) -> str:
+        """
+        Extract patient name from text using common patterns.
+        
+        Args:
+            text: The text to search
+            
+        Returns:
+            Extracted patient name or "unknown"
+        """
+        import re
+        
+        # Common patterns for patient names
+        patterns = [
+            r'patient\s+([A-Z][a-z]+\s+[A-Z][a-z]+)',  # "patient John Smith"
+            r'([A-Z][a-z]+\s+[A-Z][a-z]+)\s+has',      # "John Smith has"
+            r'([A-Z][a-z]+\s+[A-Z][a-z]+)\s+is',       # "John Smith is"
+            r'([A-Z][a-z]+\s+[A-Z][a-z]+)\s+complaining', # "John Smith complaining"
+            r'([A-Z][a-z]+\s+[A-Z][a-z]+)\s+having',   # "John Smith having"
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        
+        return "unknown"
+
