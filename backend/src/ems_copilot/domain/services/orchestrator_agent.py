@@ -91,7 +91,9 @@ class OrchestratorAgent(BaseAgent):
             },
             {
                 "name": "vitals_agent",
-                "description": "Perform functionality based on user input. The vitals agent can look up patient data, write patient vitals and look up trending values.",
+                "description": """Record patient information and vitals. Use this agent when the user wants to RECORD or WRITE DOWN patient information.
+                Examples: 'record patient vitals', 'write down patient allergies', 'note that patient has a laceration', 'patient has O2 of 95'.
+                This agent writes data to the database but does not provide medical assessments or recommendations.""",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -105,16 +107,16 @@ class OrchestratorAgent(BaseAgent):
             },
             {
                 "name": "triage_agent",
-                "description": "Perform triage on a patient. Can handle explicit symptoms or contextual queries like 'what's wrong', 'assess patient', etc.",
+                "description": "Provide medical assessments and recommendations. Use this agent when the user wants an ASSESSMENT, DIAGNOSIS, or MEDICAL OPINION about a patient's condition. Examples: 'assess this patient', 'what's wrong with the patient', 'should I be concerned about these symptoms', 'what priority level is this patient'.",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "symptoms": {
+                        "user_query": {
                             "type": "string",
-                            "description": "The symptoms of the patient or contextual query. Can be explicit symptoms or queries like 'what's wrong', 'assess patient', etc."
+                            "description": "The user query to be processed by the triage agent. This should simply be exactly what the user asked."
                         }
                     },
-                    "required": ["symptoms"]
+                    "required": ["user_query"]
                 }
             }
         ]
@@ -136,10 +138,7 @@ class OrchestratorAgent(BaseAgent):
         patient_name = self._extract_patient_name(user_prompt)
         self.conversation_history.add_conversation(
             user_query=user_prompt,
-            agent_response=response,
-            patient_name=patient_name,
-            metadata={"agent": "orchestrator", "response_type": "routed"},
-            conversation_type="orchestration"
+            agent_response=response
         )
 
         return response
@@ -181,9 +180,9 @@ class OrchestratorAgent(BaseAgent):
                 query = parameters["query"]
                 return f"SQL agent would execute: {query}"
             elif agent_name == "triage_agent":
-                symptoms = parameters["symptoms"]
+                user_query = parameters["user_query"]
                 # Call the Triage agent - now supports both explicit symptoms and contextual assessment
-                return self.triage_agent.call_triage_agent(symptoms)
+                return self.triage_agent.call_triage_agent(user_query)
             else:
                 return f"Unknown agent: {agent_name}"
                 
@@ -203,8 +202,8 @@ class OrchestratorAgent(BaseAgent):
                 break
 
             response = self.orchestrate(user_prompt)
-            print(f"Agent: {response}")    
-    
+            print(f"Agent: {response}")
+
     def _extract_patient_name(self, text: str) -> str:
         """
         Extract patient name from text using common patterns.

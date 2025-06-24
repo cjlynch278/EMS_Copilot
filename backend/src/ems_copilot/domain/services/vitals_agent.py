@@ -28,10 +28,12 @@ class VitalsAgent(BaseAgent):
         self.conversation_history = ConversationHistory()
 
         self.gemini_api_key = gemini_api_key
-        self.system_prompt  = (
-            "You are a Vitals agent. Your role is to manage patient vitals. "
+        self.system_prompt = (
+            "You are a Vitals agent. Your role is to manage patient vitals and notes. "
             "When given an input or statement, analyze it for ALL vital signs mentioned and invoke the 'write_multiple_vitals' function for each vital sign found. "
             "For example, if the input says 'patient has O2 of 93 and sugar of 120', you should call write_multiple_vitals twice - once for O2 and once for glucose. "
+            "Additionally, if the input contains important patient information that is not a vital sign (like injuries, symptoms, observations, etc.), invoke the 'write_multiple_vitals' function with vitals_name='note' and vitals_value set to the note content. "
+            "For example, if the input says 'patient sustained head trauma to the back of the head', you should call write_multiple_vitals with vitals_name='note' and vitals_value='head trauma to the back of the head'. "
             "Do not generate any natural language responses. "
             "Only return the function calls and their arguments. Do not include any text."
         )
