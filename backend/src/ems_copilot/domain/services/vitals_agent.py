@@ -3,6 +3,7 @@ import json
 import requests
 from pathlib import Path
 from ems_copilot.infrastructure.database.firestore_db import FirestoreDB
+from ems_copilot.infrastructure.database.conversation_history import ConversationHistory
 from ems_copilot.infrastructure.utils.general_utils import *
 from ems_copilot.domain.services.base_agent import BaseAgent
 
@@ -24,15 +25,17 @@ class VitalsAgent(BaseAgent):
         self.name = "Vitals_Agent"
         self.description = "An agent that provides vitals related functionalities."
         self.firestore_db = FirestoreDB(firebase_credentials_path)
-
+        self.conversation_history = ConversationHistory()
 
         self.gemini_api_key = gemini_api_key
-        self.system_prompt  = (
-            "You are a Vitals agent. Your role is to manage patient vitals. "
-            "When given a input or statement, determine the appropriate action and invoke the corresponding function. "
+        self.system_prompt = (
+            "You are a Vitals agent. Your role is to manage patient vitals and notes. "
+            "When given an input or statement, analyze it for ALL vital signs mentioned and invoke the 'write_multiple_vitals' function for each vital sign found. "
+            "For example, if the input says 'patient has O2 of 93 and sugar of 120', you should call write_multiple_vitals twice - once for O2 and once for glucose. "
+            "Additionally, if the input contains important patient information that is not a vital sign (like injuries, symptoms, observations, etc.), invoke the 'write_multiple_vitals' function with vitals_name='note' and vitals_value set to the note content. "
+            "For example, if the input says 'patient sustained head trauma to the back of the head', you should call write_multiple_vitals with vitals_name='note' and vitals_value='head trauma to the back of the head'. "
             "Do not generate any natural language responses. "
-            "If the input contains vitals data, invoke the 'write_vitals' function with the provided data. "
-            "Only return the function call and its arguments. Do not include any text."
+            "Only return the function calls and their arguments. Do not include any text."
         )
     
     def call_vitals_agent(self, input):
@@ -42,15 +45,14 @@ class VitalsAgent(BaseAgent):
         """
         functions = [
         {
-            "name": "write_vitals",
-            "description": "Write vitals data to Firestore.",
+            "name": "write_multiple_vitals",
+            "description": "Write a single vital sign data to Firestore. Call this function once for each vital sign found in the input.",
             "parameters": {
                 "type": "object",
                 "properties": {
-
                     "vitals_name": {
                         "type": "string",
-                        "description": "The type of vital being recorded (heart rate, bp, o2)."
+                        "description": "The type of vital being recorded (heart rate, bp, o2, glucose, sugar, blood pressure, temperature, etc.)."
                     },
                     "vitals_value": {
                         "type": "string",
@@ -84,7 +86,7 @@ class VitalsAgent(BaseAgent):
         },
         {
             "name": "get_vitals_by_patient_name",
-            "description": "Retrieve vitals data for a specific patient by their name from Firestore.",
+            "description": "Retrieve vitals data for a specific patient from Firestore.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -106,12 +108,35 @@ class VitalsAgent(BaseAgent):
 
         try:
             user_prompt = f"Perform the following action: {input}. \n The current time is {current_time}."
-            response = self.call_gemini( system_prompt=self.system_prompt, user_prompt=user_prompt, functions=functions)
-            handle_response = self.handle_response(response=response)
-            return response
+            # First get the raw response to handle function calls
+            raw_response = self.call_gemini( system_prompt=self.system_prompt, user_prompt=user_prompt, functions=functions)
+            handle_response = self.handle_response(response=raw_response)
+            
+            # If we have a structured response from handle_response, return it
+            if handle_response:
+                # Store conversation in history - convert response to string
+                response_str = str(handle_response) if handle_response else "No response"
+                self.conversation_history.add_conversation(
+                    user_query=input,
+                    agent_response=response_str
+                )
+                
+                return handle_response
+            
+            # Otherwise, return the parsed text response
+            parsed_response = self.parse_gemini_response(raw_response)
+            
+            # Store conversation in history
+            self.conversation_history.add_conversation(
+                user_query=input,
+                agent_response=parsed_response
+            )
+            
+            return parsed_response
         except Exception as e:
             print(f"Error calling Vitals agent: {e}")
-            return None
+            return f"Error: {str(e)}"
+    
     def write_vitals(self, json_vitals_data):
         """
         Write vitals data to Firestore.
@@ -166,20 +191,43 @@ class VitalsAgent(BaseAgent):
         Handle the response from the Gemini API and execute the appropriate function.
         """
         try:
-            # Extract the function call from the response
-            function_call = response.candidates[0].content.parts[0].function_call
-
-            if function_call and function_call.name == "write_vitals":
-                # Extract arguments for the write_vitals function
-                vitals_data = function_call.args
-
-                # Execute the write_vitals function
-                response = self.write_vitals(vitals_data)
-                print(f"Vitals data written successfully: {vitals_data}")
-                return response
-            else:
-                print("No valid function call detected in the response.")
+            # Check if there are multiple function calls
+            if not response.candidates or not response.candidates[0].content.parts:
                 return None
+            
+            function_calls = []
+            # Extract all function calls from the response
+            for part in response.candidates[0].content.parts:
+                if hasattr(part, 'function_call') and part.function_call:
+                    function_calls.append(part.function_call)
+            
+            if not function_calls:
+                print("No function calls detected in the response.")
+                return None
+            
+            # Process all function calls
+            results = []
+            for function_call in function_calls:
+                if function_call.name == "write_multiple_vitals":
+                    # Extract arguments for the write_multiple_vitals function
+                    vitals_data = function_call.args
+                    
+                    # Execute the write_vitals function
+                    result = self.write_vitals(vitals_data)
+                    results.append(result)
+                    print(f"Vitals data written successfully: {vitals_data}")
+            
+            # Return comprehensive response
+            if len(results) == 1:
+                return results[0]
+            else:
+                return {
+                    "status": "success",
+                    "entries": [result.get("entry", {}) for result in results if result.get("status") == "success"],
+                    "message": f"Successfully recorded {len(results)} vital signs.",
+                    "details": results
+                }
+                
         except Exception as e:
             print(f"Error handling response: {e}")
             return None

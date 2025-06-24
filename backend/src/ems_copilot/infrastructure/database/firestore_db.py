@@ -48,6 +48,18 @@ class FirestoreDB:
         except Exception as e:
             raise Exception(f"Failed to write vitals to Firestore: {e}")
 
+    def write_note(self, collection_name, note_data):
+        """
+        Write a patient note to Firestore.
+        """
+        try:
+            print("writing note to collection: ", collection_name)
+            doc_ref = self.db.collection(collection_name).document()
+            doc_ref.set(note_data)
+            print(f"Note for patient {note_data['patient_name']} written successfully.")
+        except Exception as e:
+            raise Exception(f"Failed to write note to Firestore: {e}")
+
     def get_vitals(self, collection_name, patient_id):
         """
         Retrieve vitals data for a specific patient from Firestore.
@@ -61,3 +73,29 @@ class FirestoreDB:
                 return None
         except Exception as e:
             raise Exception(f"Failed to retrieve vitals from Firestore: {e}")
+
+    def get_vitals_by_patient_name(self, collection_name, patient_name):
+        """
+        Retrieve vitals data for a specific patient from Firestore.
+        """
+        try:
+            docs = self.db.collection(collection_name).where('patient_name', '==', patient_name).stream()
+            vitals_data = []
+            for doc in docs:
+                vitals_data.append(doc.to_dict())
+            return vitals_data
+        except Exception as e:
+            raise Exception(f"Failed to retrieve vitals from Firestore: {e}")
+
+    def get_notes_by_patient_name(self, collection_name, patient_name):
+        """
+        Retrieve notes for a specific patient from Firestore.
+        """
+        try:
+            docs = self.db.collection(collection_name).where('patient_name', '==', patient_name).stream()
+            notes_data = []
+            for doc in docs:
+                notes_data.append(doc.to_dict())
+            return notes_data
+        except Exception as e:
+            raise Exception(f"Failed to retrieve notes from Firestore: {e}")
