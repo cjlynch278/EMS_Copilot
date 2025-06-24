@@ -5,3 +5,35 @@
 /backend/__pycache__/
 /backend/*.pyc
 /backend/dev/sandbox.ipynb
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Database files
+*.sqlite3
+*.db
+
+# Binary files
+*.bin
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+*.ipynb_checkpoints/
+
+# Logs
+*.log
