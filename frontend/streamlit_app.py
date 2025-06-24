@@ -4,6 +4,8 @@ import json
 import websocket
 import threading
 import time
+import base64
+import io
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
@@ -54,6 +56,73 @@ st.markdown("""
 # Main header
 st.markdown('<h1 class="main-header">🚑 EMS Copilot Test Interface</h1>', unsafe_allow_html=True)
 
+# TTS Function
+def synthesize_speech(text, voice_name, speaking_rate=1.0, pitch=0.0):
+    """Synthesize speech using the backend TTS endpoint"""
+    try:
+        response = requests.post(
+            f"{api_url}/tts/hd",
+            json={
+                "text": text,
+                "voice_name": voice_name,
+                "language_code": "en-US",
+                "speaking_rate": speaking_rate,
+                "pitch": pitch
+            },
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            # Return the audio data
+            return response.content
+        else:
+            st.error(f"TTS Error: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        st.error(f"TTS Error: {str(e)}")
+        return None
+
+def display_response_with_tts(response_data, query_text, voice_name, speaking_rate, pitch):
+    """Display response with TTS button"""
+    
+    # Display the response
+    st.markdown('<div class="response-box success-box">', unsafe_allow_html=True)
+    st.json(response_data)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Extract response text for TTS
+    response_text = ""
+    if isinstance(response_data, dict):
+        response_text = response_data.get('response', str(response_data))
+    else:
+        response_text = str(response_data)
+    
+    # TTS Button
+    col1, col2 = st.columns([1, 3])
+    
+    with col1:
+        if st.button("🔊 Speak Response", type="secondary"):
+            if response_text.strip():
+                with st.spinner("Synthesizing speech..."):
+                    audio_data = synthesize_speech(
+                        response_text, 
+                        voice_name, 
+                        speaking_rate, 
+                        pitch
+                    )
+                    
+                    if audio_data:
+                        # Create audio player
+                        st.audio(audio_data, format="audio/wav")
+                        st.success("✅ Audio synthesized successfully!")
+                    else:
+                        st.error("❌ Failed to synthesize audio")
+            else:
+                st.warning("No text to synthesize")
+    
+    with col2:
+        st.info(f"💡 Click 'Speak Response' to hear this response using {voice_name}")
+
 # Sidebar for configuration
 with st.sidebar:
     st.header("⚙️ Configuration")
@@ -64,6 +133,54 @@ with st.sidebar:
         value="http://localhost:8000",
         help="Base URL for your FastAPI server"
     )
+    
+    # TTS Configuration
+    st.header("🔊 Text-to-Speech")
+    
+    # TTS toggle
+    tts_enabled = st.checkbox(
+        "Enable TTS",
+        value=True,
+        help="Enable text-to-speech functionality"
+    )
+    
+    if tts_enabled:
+        # Voice selection
+        voice_options = {
+            "en-US-Chirp3-HD-Orus": "HD Male Voice (Orus)",
+            "en-US-Chirp3-HD-Aria": "HD Female Voice (Aria)", 
+            "en-US-Chirp3-HD-Jenny": "HD Female Voice (Jenny)",
+            "en-US-Chirp3-HD-Guy": "HD Male Voice (Guy)",
+            "en-US-Standard-A": "Standard Female",
+            "en-US-Standard-B": "Standard Male"
+        }
+        
+        selected_voice = st.selectbox(
+            "Select Voice:",
+            options=list(voice_options.keys()),
+            format_func=lambda x: voice_options[x],
+            index=0
+        )
+        
+        # Speaking rate
+        speaking_rate = st.slider(
+            "Speaking Rate:",
+            min_value=0.25,
+            max_value=4.0,
+            value=1.0,
+            step=0.25,
+            help="Speed of speech (1.0 = normal speed)"
+        )
+        
+        # Pitch
+        pitch = st.slider(
+            "Pitch:",
+            min_value=-20.0,
+            max_value=20.0,
+            value=0.0,
+            step=1.0,
+            help="Pitch adjustment (-20 = very low, +20 = very high)"
+        )
     
     # Example queries
     st.header("💡 Example Queries")
@@ -106,9 +223,7 @@ with col1:
                     
                     if response.status_code == 200:
                         data = response.json()
-                        st.markdown('<div class="response-box success-box">', unsafe_allow_html=True)
-                        st.json(data)
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        display_response_with_tts(data, query, selected_voice, speaking_rate, pitch)
                         
                         # Store successful query
                         if 'query_history' not in st.session_state:
@@ -203,9 +318,7 @@ with col2:
                     time.sleep(1)
                     if 'ws_message' in st.session_state:
                         data = json.loads(st.session_state.ws_message)
-                        st.markdown('<div class="response-box success-box">', unsafe_allow_html=True)
-                        st.json(data)
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        display_response_with_tts(data, ws_query, selected_voice, speaking_rate, pitch)
                         
                         # Store in history
                         if 'query_history' not in st.session_state:
@@ -234,6 +347,32 @@ if 'query_history' in st.session_state and st.session_state.query_history:
             st.write(f"**Query:** {entry['query']}")
             st.write(f"**Type:** {entry['type']}")
             st.json(entry['response'])
+            
+            # TTS button for historical responses
+            if tts_enabled:
+                response_text = ""
+                if isinstance(entry['response'], dict):
+                    response_text = entry['response'].get('response', str(entry['response']))
+                else:
+                    response_text = str(entry['response'])
+                
+                if st.button(f"🔊 Speak Response {i}", key=f"tts_history_{i}"):
+                    if response_text.strip():
+                        with st.spinner("Synthesizing speech..."):
+                            audio_data = synthesize_speech(
+                                response_text, 
+                                selected_voice, 
+                                speaking_rate, 
+                                pitch
+                            )
+                            
+                            if audio_data:
+                                st.audio(audio_data, format="audio/wav")
+                                st.success("✅ Audio synthesized successfully!")
+                            else:
+                                st.error("❌ Failed to synthesize audio")
+                    else:
+                        st.warning("No text to synthesize")
 else:
     st.info("No queries yet. Start testing to see your history here!")
 

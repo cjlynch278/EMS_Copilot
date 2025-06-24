@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMS Copilot Test Frontend with TTS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .section h2 {
+            color: #555;
+            margin-top: 0;
+        }
+        input[type="text"], select {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .tts-button {
+            background-color: #28a745;
+        }
+        .tts-button:hover {
+            background-color: #218838;
+        }
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .success {
+            border-left-color: #28a745;
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        .websocket-status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .tts-controls {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .tts-controls label {
+            display: block;
+            margin: 5px 0;
+            font-weight: bold;
+        }
+        .audio-player {
+            margin: 10px 0;
+            width: 100%;
+        }
+        .response-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .response-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚑 EMS Copilot Test Frontend with TTS</h1>
+        
+        <!-- TTS Configuration -->
+        <div class="section">
+            <h2>🔊 Text-to-Speech Configuration</h2>
+            <div class="tts-controls">
+                <label>
+                    <input type="checkbox" id="ttsEnabled" checked> Enable Text-to-Speech
+                </label>
+                <label for="voiceSelect">Select Voice:</label>
+                <select id="voiceSelect">
+                    <option value="en-US-Chirp3-HD-Orus">HD Male Voice (Orus) - Best Quality</option>
+                    <option value="en-US-Chirp3-HD-Aria">HD Female Voice (Aria) - Best Quality</option>
+                    <option value="en-US-Chirp3-HD-Jenny">HD Female Voice (Jenny) - Best Quality</option>
+                    <option value="en-US-Chirp3-HD-Guy">HD Male Voice (Guy) - Best Quality</option>
+                    <option value="en-US-Standard-A">Standard Female</option>
+                    <option value="en-US-Standard-B">Standard Male</option>
+                </select>
+                <label for="speakingRate">Speaking Rate: <span id="rateValue">1.0</span></label>
+                <input type="range" id="speakingRate" min="0.25" max="4.0" step="0.25" value="1.0">
+                <label for="pitch">Pitch: <span id="pitchValue">0</span></label>
+                <input type="range" id="pitch" min="-20" max="20" step="1" value="0">
+            </div>
+        </div>
+        
+        <!-- REST API Test Section -->
+        <div class="section">
+            <h2>📡 REST API Test (POST /query)</h2>
+            <input type="text" id="restQuery" placeholder="Enter your query here (e.g., 'What is the heart rate for patient John?')" />
+            <button onclick="testRestAPI()">Send Query</button>
+            <div id="restResponse" class="response" style="display: none;"></div>
+            <div id="restTTSControls" style="display: none;">
+                <div class="response-actions">
+                    <button class="tts-button" onclick="synthesizeSpeech('rest')">🔊 Speak Response</button>
+                    <span id="restTTSStatus"></span>
+                </div>
+                <audio id="restAudio" class="audio-player" controls style="display: none;"></audio>
+            </div>
+        </div>
+
+        <!-- WebSocket Test Section -->
+        <div class="section">
+            <h2>🔌 WebSocket Test</h2>
+            <div>
+                <span class="websocket-status" id="wsStatus">Disconnected</span>
+                <button onclick="connectWebSocket()" id="connectBtn">Connect</button>
+                <button onclick="disconnectWebSocket()" id="disconnectBtn" disabled>Disconnect</button>
+            </div>
+            <input type="text" id="wsQuery" placeholder="Enter your query here" />
+            <button onclick="sendWebSocketMessage()" id="sendBtn" disabled>Send Message</button>
+            <div id="wsResponse" class="response" style="display: none;"></div>
+            <div id="wsTTSControls" style="display: none;">
+                <div class="response-actions">
+                    <button class="tts-button" onclick="synthesizeSpeech('ws')">🔊 Speak Response</button>
+                    <span id="wsTTSStatus"></span>
+                </div>
+                <audio id="wsAudio" class="audio-player" controls style="display: none;"></audio>
+            </div>
+        </div>
+
+        <!-- Example Queries -->
+        <div class="section">
+            <h2>💡 Example Queries to Test</h2>
+            <p><strong>Vitals:</strong> "Record heart rate 85 for patient John Smith"</p>
+            <p><strong>GPS:</strong> "Get directions to nearest hospital"</p>
+            <p><strong>Weather:</strong> "What's the weather like in New York?"</p>
+            <p><strong>Database:</strong> "Show me all patients in the emergency room"</p>
+            <p><strong>Triage:</strong> "Patient has chest pain and shortness of breath"</p>
+        </div>
+    </div>
+
+    <script>
+        let websocket = null;
+        let lastRestResponse = null;
+        let lastWSResponse = null;
+
+        // Update range value displays
+        document.getElementById('speakingRate').addEventListener('input', function() {
+            document.getElementById('rateValue').textContent = this.value;
+        });
+
+        document.getElementById('pitch').addEventListener('input', function() {
+            document.getElementById('pitchValue').textContent = this.value;
+        });
+
+        // TTS Function
+        async function synthesizeSpeech(type) {
+            if (!document.getElementById('ttsEnabled').checked) {
+                alert('Please enable TTS first');
+                return;
+            }
+
+            const response = type === 'rest' ? lastRestResponse : lastWSResponse;
+            if (!response) {
+                alert('No response to synthesize');
+                return;
+            }
+
+            // Extract response text
+            let responseText = '';
+            if (typeof response === 'object') {
+                responseText = response.response || JSON.stringify(response);
+            } else {
+                responseText = response;
+            }
+
+            if (!responseText.trim()) {
+                alert('No text to synthesize');
+                return;
+            }
+
+            const statusElement = document.getElementById(type + 'TTSStatus');
+            const audioElement = document.getElementById(type + 'Audio');
+            
+            statusElement.textContent = 'Synthesizing...';
+            statusElement.style.color = '#007bff';
+
+            try {
+                const ttsResponse = await fetch('/tts/hd', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: responseText,
+                        voice_name: document.getElementById('voiceSelect').value,
+                        language_code: 'en-US',
+                        speaking_rate: parseFloat(document.getElementById('speakingRate').value),
+                        pitch: parseFloat(document.getElementById('pitch').value)
+                    })
+                });
+
+                if (ttsResponse.ok) {
+                    const audioBlob = await ttsResponse.blob();
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    audioElement.src = audioUrl;
+                    audioElement.style.display = 'block';
+                    
+                    statusElement.textContent = '✅ Audio ready!';
+                    statusElement.style.color = '#28a745';
+                } else {
+                    const errorData = await ttsResponse.json();
+                    statusElement.textContent = `❌ Error: ${errorData.detail || 'Unknown error'}`;
+                    statusElement.style.color = '#dc3545';
+                }
+            } catch (error) {
+                statusElement.textContent = `❌ Network error: ${error.message}`;
+                statusElement.style.color = '#dc3545';
+            }
+        }
+
+        // REST API Test
+        async function testRestAPI() {
+            const query = document.getElementById('restQuery').value;
+            const responseDiv = document.getElementById('restResponse');
+            const ttsControls = document.getElementById('restTTSControls');
+            
+            if (!query.trim()) {
+                showResponse(responseDiv, 'Please enter a query', 'error');
+                ttsControls.style.display = 'none';
+                return;
+            }
+
+            try {
+                responseDiv.style.display = 'block';
+                showResponse(responseDiv, 'Sending request...', '');
+                ttsControls.style.display = 'none';
+                
+                const response = await fetch('/query', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query: query })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResponse(responseDiv, JSON.stringify(data, null, 2), 'success');
+                    lastRestResponse = data;
+                    if (document.getElementById('ttsEnabled').checked) {
+                        ttsControls.style.display = 'block';
+                    }
+                } else {
+                    showResponse(responseDiv, `Error: ${data.detail || 'Unknown error'}`, 'error');
+                    ttsControls.style.display = 'none';
+                }
+            } catch (error) {
+                showResponse(responseDiv, `Network error: ${error.message}`, 'error');
+                ttsControls.style.display = 'none';
+            }
+        }
+
+        // WebSocket Functions
+        function connectWebSocket() {
+            try {
+                websocket = new WebSocket('ws://localhost:8000/ws/chat');
+                
+                websocket.onopen = function(event) {
+                    updateWebSocketStatus('Connected', 'connected');
+                    document.getElementById('connectBtn').disabled = true;
+                    document.getElementById('disconnectBtn').disabled = false;
+                    document.getElementById('sendBtn').disabled = false;
+                };
+                
+                websocket.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    const responseDiv = document.getElementById('wsResponse');
+                    const ttsControls = document.getElementById('wsTTSControls');
+                    
+                    responseDiv.style.display = 'block';
+                    showResponse(responseDiv, JSON.stringify(data, null, 2), 'success');
+                    
+                    lastWSResponse = data;
+                    if (document.getElementById('ttsEnabled').checked) {
+                        ttsControls.style.display = 'block';
+                    }
+                };
+                
+                websocket.onclose = function(event) {
+                    updateWebSocketStatus('Disconnected', 'disconnected');
+                    document.getElementById('connectBtn').disabled = false;
+                    document.getElementById('disconnectBtn').disabled = true;
+                    document.getElementById('sendBtn').disabled = true;
+                };
+                
+                websocket.onerror = function(error) {
+                    updateWebSocketStatus('Error', 'disconnected');
+                    console.error('WebSocket error:', error);
+                };
+                
+            } catch (error) {
+                console.error('Failed to connect:', error);
+                updateWebSocketStatus('Connection Failed', 'disconnected');
+            }
+        }
+
+        function disconnectWebSocket() {
+            if (websocket) {
+                websocket.close();
+                websocket = null;
+            }
+        }
+
+        function sendWebSocketMessage() {
+            const query = document.getElementById('wsQuery').value;
+            const responseDiv = document.getElementById('wsResponse');
+            const ttsControls = document.getElementById('wsTTSControls');
+            
+            if (!query.trim()) {
+                showResponse(responseDiv, 'Please enter a query', 'error');
+                ttsControls.style.display = 'none';
+                return;
+            }
+
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                const message = {
+                    message: query
+                };
+                websocket.send(JSON.stringify(message));
+                responseDiv.style.display = 'block';
+                showResponse(responseDiv, 'Message sent, waiting for response...', '');
+                ttsControls.style.display = 'none';
+            } else {
+                showResponse(responseDiv, 'WebSocket is not connected', 'error');
+                ttsControls.style.display = 'none';
+            }
+        }
+
+        function updateWebSocketStatus(status, className) {
+            const statusElement = document.getElementById('wsStatus');
+            statusElement.textContent = status;
+            statusElement.className = `websocket-status ${className}`;
+        }
+
+        function showResponse(element, message, type) {
+            element.textContent = message;
+            element.className = `response ${type}`;
+        }
+
+        // Allow Enter key to submit
+        document.getElementById('restQuery').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                testRestAPI();
+            }
+        });
+
+        document.getElementById('wsQuery').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendWebSocketMessage();
+            }
+        });
+    </script>
+</body>
+</html> 
