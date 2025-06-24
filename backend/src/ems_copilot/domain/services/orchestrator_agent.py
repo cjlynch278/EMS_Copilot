@@ -203,7 +203,9 @@ class OrchestratorAgent(BaseAgent):
                 break
 
             response = self.orchestrate(user_prompt)
-            print(f"Agent: {response}")    def _extract_patient_name(self, text: str) -> str:
+            print(f"Agent: {response}")    
+    
+    def _extract_patient_name(self, text: str) -> str:
         """
         Extract patient name from text using common patterns.
         
