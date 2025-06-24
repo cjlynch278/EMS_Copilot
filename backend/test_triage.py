@@ -106,23 +106,17 @@ def test_contextual_triage():
     # Simulate a conversation about a patient with low O2
     triage_agent.conversation_history.add_conversation(
         user_query="Record patient Hank Smith having a o2 of 93 and sugar of 120",
-        agent_response="Vitals recorded: O2 93%, Glucose 120 mg/dL",
-        patient_name="Hank Smith",
-        metadata={"type": "vitals_recording"}
+        agent_response="Vitals recorded: O2 93%, Glucose 120 mg/dL"
     )
     
     triage_agent.conversation_history.add_conversation(
         user_query="Patient Hank Smith is complaining of shortness of breath",
-        agent_response="Shortness of breath noted for Hank Smith",
-        patient_name="Hank Smith",
-        metadata={"type": "symptom_report"}
+        agent_response="Shortness of breath noted for Hank Smith"
     )
     
     triage_agent.conversation_history.add_conversation(
         user_query="Hank Smith's O2 dropped to 89",
-        agent_response="O2 89% recorded for Hank Smith - concerning drop",
-        patient_name="Hank Smith",
-        metadata={"type": "vitals_update"}
+        agent_response="O2 89% recorded for Hank Smith - concerning drop"
     )
     
     # Test contextual triage queries
