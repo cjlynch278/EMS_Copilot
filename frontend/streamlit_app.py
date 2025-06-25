@@ -56,10 +56,15 @@ st.markdown("""
 # Main header
 st.markdown('<h1 class="main-header">🚑 EMS Copilot Test Interface</h1>', unsafe_allow_html=True)
 
+
 # TTS Function
 def synthesize_speech(text, voice_name, speaking_rate=1.0, pitch=0.0):
     """Synthesize speech using the backend TTS endpoint"""
     try:
+        st.write(f"🔍 Debug: Sending TTS request to {api_url}/tts/hd")
+        st.write(f"🔍 Debug: Text: {text[:50]}...")
+        st.write(f"🔍 Debug: Voice: {voice_name}")
+        
         response = requests.post(
             f"{api_url}/tts/hd",
             json={
@@ -72,18 +77,27 @@ def synthesize_speech(text, voice_name, speaking_rate=1.0, pitch=0.0):
             timeout=30
         )
         
+        st.write(f"🔍 Debug: Response status: {response.status_code}")
+        st.write(f"🔍 Debug: Response headers: {dict(response.headers)}")
+        
         if response.status_code == 200:
+            st.write(f"🔍 Debug: Audio content length: {len(response.content)} bytes")
             # Return the audio data
             return response.content
         else:
             st.error(f"TTS Error: {response.status_code} - {response.text}")
+            st.write(f"🔍 Debug: Error response: {response.text}")
             return None
     except Exception as e:
         st.error(f"TTS Error: {str(e)}")
+        st.write(f"🔍 Debug: Exception type: {type(e).__name__}")
+        st.write(f"🔍 Debug: Exception details: {str(e)}")
         return None
 
 def display_response_with_tts(response_data, query_text, voice_name, speaking_rate, pitch):
     """Display response with TTS button"""
+    
+    st.write("🔍 Debug: display_response_with_tts function called!")
     
     # Display the response
     st.markdown('<div class="response-box success-box">', unsafe_allow_html=True)
@@ -97,31 +111,13 @@ def display_response_with_tts(response_data, query_text, voice_name, speaking_ra
     else:
         response_text = str(response_data)
     
-    # TTS Button
-    col1, col2 = st.columns([1, 3])
+    st.write(f"🔍 Debug: Extracted response text: {str(response_text)[:50]}...")
     
-    with col1:
-        if st.button("🔊 Speak Response", type="secondary"):
-            if response_text.strip():
-                with st.spinner("Synthesizing speech..."):
-                    audio_data = synthesize_speech(
-                        response_text, 
-                        voice_name, 
-                        speaking_rate, 
-                        pitch
-                    )
-                    
-                    if audio_data:
-                        # Create audio player
-                        st.audio(audio_data, format="audio/wav")
-                        st.success("✅ Audio synthesized successfully!")
-                    else:
-                        st.error("❌ Failed to synthesize audio")
-            else:
-                st.warning("No text to synthesize")
+    # Just display the response, no TTS button here
+    st.write("🔍 Debug: Response displayed successfully!")
     
-    with col2:
-        st.info(f"💡 Click 'Speak Response' to hear this response using {voice_name}")
+    # Return the response text for TTS processing elsewhere
+    return response_text
 
 # Sidebar for configuration
 with st.sidebar:
@@ -199,6 +195,35 @@ with st.sidebar:
 # Main content area
 col1, col2 = st.columns([1, 1])
 
+# Test button to see if buttons work at all
+if st.button("🧪 Test Button"):
+    st.write("✅ Test button works!")
+    if 'test_clicks' not in st.session_state:
+        st.session_state.test_clicks = 0
+    st.session_state.test_clicks += 1
+    st.write(f"Test button clicked {st.session_state.test_clicks} times")
+
+# NEW APPROACH: Separate TTS section
+st.header("🔊 Text-to-Speech (Standalone)")
+tts_text = st.text_area("Enter text to synthesize:", height=100, placeholder="Type or paste text here...")
+if st.button("🔊 Synthesize Speech", key="standalone_tts"):
+    if tts_text.strip():
+        with st.spinner("Synthesizing speech..."):
+            audio_data = synthesize_speech(
+                tts_text, 
+                selected_voice, 
+                speaking_rate, 
+                pitch
+            )
+            
+            if audio_data:
+                st.audio(audio_data, format="audio/wav")
+                st.success("✅ Audio synthesized successfully!")
+            else:
+                st.error("❌ Failed to synthesize audio")
+    else:
+        st.warning("Please enter some text to synthesize.")
+
 with col1:
     st.header("📡 REST API Test")
     
@@ -223,17 +248,50 @@ with col1:
                     
                     if response.status_code == 200:
                         data = response.json()
-                        display_response_with_tts(data, query, selected_voice, speaking_rate, pitch)
+                        st.write("🔍 Debug: About to call display_response_with_tts...")
+                        time.sleep(2)  # Pause for 2 seconds
+                        try:
+                            response_text = display_response_with_tts(data, query, selected_voice, speaking_rate, pitch)
+                            st.write("🔍 Debug: display_response_with_tts completed successfully!")
+                            
+                            # Add TTS button back to response area
+                            if response_text and str(response_text).strip():
+                                st.write("🔍 Debug: Adding TTS button to response area...")
+                                if st.button("🔊 Speak This Response", key=f"response_tts_{hash(str(data))}"):
+                                    st.write("🔍 Debug: Response TTS button clicked!")
+                                    with st.spinner("Synthesizing speech..."):
+                                        audio_data = synthesize_speech(
+                                            str(response_text), 
+                                            selected_voice, 
+                                            speaking_rate, 
+                                            pitch
+                                        )
+                                        
+                                        if audio_data:
+                                            st.write("🔍 Debug: Audio data received, creating player...")
+                                            st.audio(audio_data, format="audio/wav")
+                                            st.success("✅ Audio synthesized successfully!")
+                                        else:
+                                            st.error("❌ Failed to synthesize audio")
+                            
+                            # Store successful query
+                            if 'query_history' not in st.session_state:
+                                st.session_state.query_history = []
+                            st.session_state.query_history.append({
+                                'timestamp': datetime.now().strftime("%H:%M:%S"),
+                                'query': query,
+                                'response': data,
+                                'type': 'REST'
+                            })
+                            
+                        except Exception as e:
+                            st.error(f"❌ Error in display_response_with_tts: {str(e)}")
+                            st.write(f"🔍 Debug: Exception type: {type(e).__name__}")
+                            import traceback
+                            st.write(f"🔍 Debug: Full traceback: {traceback.format_exc()}")
                         
-                        # Store successful query
-                        if 'query_history' not in st.session_state:
-                            st.session_state.query_history = []
-                        st.session_state.query_history.append({
-                            'timestamp': datetime.now().strftime("%H:%M:%S"),
-                            'query': query,
-                            'response': data,
-                            'type': 'REST'
-                        })
+                        #sleep for 5 seconds
+                        time.sleep(5)
                     else:
                         st.markdown('<div class="response-box error-box">', unsafe_allow_html=True)
                         st.error(f"Error {response.status_code}: {response.text}")
@@ -318,7 +376,7 @@ with col2:
                     time.sleep(1)
                     if 'ws_message' in st.session_state:
                         data = json.loads(st.session_state.ws_message)
-                        display_response_with_tts(data, ws_query, selected_voice, speaking_rate, pitch)
+                        response_text = display_response_with_tts(data, ws_query, selected_voice, speaking_rate, pitch)
                         
                         # Store in history
                         if 'query_history' not in st.session_state:

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from ems_copilot.domain.services.orchestrator_agent import OrchestratorAgent
 import logging
@@ -193,7 +193,7 @@ async def hd_text_to_speech(request: TextToSpeechRequest):
         request: TextToSpeechRequest containing text and voice parameters
         
     Returns:
-        FileResponse: WAV audio file
+        Response: Raw audio content
     """
     try:
         logging.info(f"Converting text to HD speech: {request.text[:50]}...")
@@ -223,17 +223,11 @@ async def hd_text_to_speech(request: TextToSpeechRequest):
             input=synthesis_input, voice=voice, audio_config=audio_config
         )
         
-        # Create a temporary file to store the audio
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
-            temp_file.write(response.audio_content)
-            temp_file_path = temp_file.name
-        
-        # Return the audio file
-        return FileResponse(
-            path=temp_file_path,
+        # Return the raw audio content directly
+        return Response(
+            content=response.audio_content,
             media_type="audio/wav",
-            filename="hd_speech.wav",
-            background=lambda: os.unlink(temp_file_path)  # Clean up temp file after response
+            headers={"Content-Disposition": "inline"}
         )
         
     except Exception as e:

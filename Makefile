@@ -11,7 +11,7 @@ GREEN := \033[0;32m
 RED := \033[0;31m
 NC := \033[0m # No Color
 
-.PHONY: help setup clean build run stop logs test lint format install-dev install-prod
+.PHONY: help setup clean build run stop logs test lint format install-dev install-prod server start
 
 # Default target
 help:
@@ -27,6 +27,8 @@ help:
 	@echo "${GREEN}format${NC}       - Format code"
 	@echo "${GREEN}install-dev${NC}  - Install development dependencies"
 	@echo "${GREEN}install-prod${NC} - Install production dependencies"
+	@echo "${GREEN}server${NC}       - Run the backend API server"
+	@echo "${GREEN}start${NC}        - Start both backend server and Streamlit app"
 
 # Setup virtual environment
 setup:
@@ -99,5 +101,18 @@ install-prod:
 	@echo "${CYAN}Installing production dependencies...${NC}"
 	$(PIP) install -r requirements.txt
 	@echo "${GREEN}Production dependencies installed!${NC}"
+
+# Server command
+server:
+	@echo "${CYAN}Starting backend API server...${NC}"
+	$(PYTHON_VENV) run_server.py
+
+# Start both backend and frontend
+start:
+	@echo "${CYAN}Starting EMS Copilot (Backend + Frontend)...${NC}"
+	@echo "${CYAN}Backend will be at: http://localhost:8000${NC}"
+	@echo "${CYAN}Frontend will be at: http://localhost:8501${NC}"
+	powershell -Command "Start-Process powershell -ArgumentList '-Command', '$(PYTHON_VENV) run_server.py' -WindowStyle Normal"
+	powershell -Command "Start-Process powershell -ArgumentList '-Command', 'cd frontend; streamlit run streamlit_app.py' -WindowStyle Normal"
 
 # Add any additional commands specific to your project here
