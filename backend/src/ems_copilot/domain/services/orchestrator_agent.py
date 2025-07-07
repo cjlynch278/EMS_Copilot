@@ -39,12 +39,37 @@ class OrchestratorAgent(BaseAgent):
         self.memory = []
         self.conversation_history = ConversationHistory()
 
+        # Initalize task Queue, responsible for managing which agents need to be executed
+        self.task_queue = []
+        
+
+
+    def run(self):
+        """
+        Run the orchestrator in a loop to handle tasks from the task queue.
+        """
+        print("Orchestrator is running. Type 'exit' to stop.")
+        while True:
+            if self.task_queue:
+                task = self.task_queue.pop(0)
+                if task.get("type") == "conversation":
+                    # Handle conversation task
+                    print(f"Conversation active for: {task['original_input']}")
+                    # The conversation will be handled in the next user input
+                else:
+                    self.orchestrate(task)
+            else:
+                print("No tasks in the queue. Waiting for user input...")
+                user_prompt = input("You: ")
+                if user_prompt.lower() == "exit":
+                    print("Exiting orchestrator.")
+                    break
+                self.orchestrate(user_prompt)
+
     def orchestrate(self, user_prompt):
         """
         Orchestrate the interaction by analyzing the user prompt and routing it to the appropriate agent.
         """
-        # Define the system prompt
-
         self.memory.append(user_prompt)
         functions = [
             {
@@ -130,22 +155,28 @@ class OrchestratorAgent(BaseAgent):
         except Exception as e:
             print(f"Error calling Gemini API: {e}")
             return None
+            
         # Handle the response
-        response = self.get_agent_response(response)
-        self.memory.append({"role": "agent", "content": response})
+        agent_response = self.get_agent_response(response)
         
-        # Store in conversation history
-        patient_name = self._extract_patient_name(user_prompt)
+        # Store response in memory and conversation history
+        if hasattr(agent_response, 'text'):
+            response_text = agent_response.text
+        else:
+            response_text = str(agent_response)
+            
+        self.memory.append({"role": "agent", "content": response_text})
         self.conversation_history.add_conversation(
             user_query=user_prompt,
-            agent_response=response
+            agent_response=response_text
         )
 
-        return response
+        return response_text
     
     def get_agent_response(self, response):
         """
         Get the response from the specified agent with the given parameters.
+        Response should always follow the agent_response model.
         """
 
         
@@ -167,11 +198,15 @@ class OrchestratorAgent(BaseAgent):
             
             if agent_name == "gps_agent":
                 question = parameters["question"]
-                # Call the GPS agent with the question - now returns clean text
-                return self.gps_agent.call_gps(question)
+                # Call the GPS agent - now returns AgentResponse
+                agent_response = self.gps_agent.call_gps(question)
+                if agent_response.is_success():
+                    return agent_response.text
+                else:
+                    return f"GPS Error: {agent_response.text}"
             elif agent_name == "vitals_agent":
                 input_data = parameters["input"]
-                # Call the Vitals agent - now returns clean text or structured response
+                # Call the Vitals agent - now returns AgentResponse
                 return self.vitals_agent.call_vitals_agent(input_data)
             elif agent_name == "weather_agent":
                 location = parameters["location"]
@@ -181,7 +216,7 @@ class OrchestratorAgent(BaseAgent):
                 return f"SQL agent would execute: {query}"
             elif agent_name == "triage_agent":
                 user_query = parameters["user_query"]
-                # Call the Triage agent - now supports both explicit symptoms and contextual assessment
+                # Call the Triage agent - now returns AgentResponse
                 return self.triage_agent.call_triage_agent(user_query)
             else:
                 return f"Unknown agent: {agent_name}"
@@ -190,45 +225,5 @@ class OrchestratorAgent(BaseAgent):
             print(f"Error in get_agent_response: {e}")
             return f"Sorry, I encountered an error processing your request: {str(e)}"
     
-    def run(self):
-        """
-        Run the orchestrator in a loop to handle multiple user inputs.
-        """
-        print("Orchestrator is running. Type 'exit' to stop.")
-        while True:
-            user_prompt = input("You: ")
-            if user_prompt.lower() == "exit":
-                print("Exiting orchestrator.")
-                break
 
-            response = self.orchestrate(user_prompt)
-            print(f"Agent: {response}")
-
-    def _extract_patient_name(self, text: str) -> str:
-        """
-        Extract patient name from text using common patterns.
-        
-        Args:
-            text: The text to search
-            
-        Returns:
-            Extracted patient name or "unknown"
-        """
-        import re
-        
-        # Common patterns for patient names
-        patterns = [
-            r'patient\s+([A-Z][a-z]+\s+[A-Z][a-z]+)',  # "patient John Smith"
-            r'([A-Z][a-z]+\s+[A-Z][a-z]+)\s+has',      # "John Smith has"
-            r'([A-Z][a-z]+\s+[A-Z][a-z]+)\s+is',       # "John Smith is"
-            r'([A-Z][a-z]+\s+[A-Z][a-z]+)\s+complaining', # "John Smith complaining"
-            r'([A-Z][a-z]+\s+[A-Z][a-z]+)\s+having',   # "John Smith having"
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                return match.group(1).strip()
-        
-        return "unknown"
-
+   
