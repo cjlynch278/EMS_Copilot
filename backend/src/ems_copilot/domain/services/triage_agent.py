@@ -13,15 +13,16 @@ class TriageAgent(BaseAgent):
     and patient data from Firestore.
     """
     
-    def __init__(self, gemini_api_key: str, firebase_credentials_path: str = None):
+    def __init__(self, gemini_api_key: str = None, firebase_credentials_path: str = None, project_id: str = None):
         """
         Initialize the TriageAgent.
         
         Args:
-            gemini_api_key: API key for Gemini
+            gemini_api_key: API key for Gemini (optional, will use Secret Manager if None)
             firebase_credentials_path: Path to Firebase credentials
+            project_id: Google Cloud project ID for Secret Manager access
         """
-        super().__init__(gemini_api_key)
+        super().__init__(gemini_api_key, project_id)
         self.name = "TriageAgent"
         self.description = "An agent that performs patient triage with context from history and patient data."
         

@@ -20,10 +20,10 @@ from ems_copilot.infrastructure.api.main import app
 
 if __name__ == "__main__":
     import uvicorn
-    print(f"🚀 Starting EMS Copilot server...")
-    print(f"📁 Project directory: {project_dir}")
-    print(f"📁 Backend src directory: {backend_src_dir}")
-    print(f"🐍 Python path: {sys.path[:3]}...")
+    print(f" Starting EMS Copilot server...")
+    print(f" Project directory: {project_dir}")
+    print(f" Backend src directory: {backend_src_dir}")
+    print(f" Python path: {sys.path[:3]}...")
     
     uvicorn.run(
         "run_server:app",

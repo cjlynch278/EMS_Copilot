@@ -16,14 +16,13 @@ class GPSAgent(BaseAgent):
     Inherits from BaseAgent to handle Gemini API calls.
     """
 
-    def __init__(self, gemini_api_key, google_maps_api_key):
+    def __init__(self, gemini_api_key=None, google_maps_api_key=None, project_id=None):
         """
         Initialize the GPSAgent with the API key and Gemini API URL.
         """
-        super().__init__(gemini_api_key)  # Initialize BaseAgent
+        super().__init__(gemini_api_key, project_id)  # Initialize BaseAgent
         self.name = "GPSAgent"
         self.description = "An agent that provides GPS-related functionalities."
-        self.gemini_api_key = gemini_api_key
         self.google_maps_api_key = google_maps_api_key
         self.system_prompt = "You are a GPS agent. You can provide directions, ETA, and address" \
         "You will be given a question, you will need to answer it given the info you are given in the prompt." \

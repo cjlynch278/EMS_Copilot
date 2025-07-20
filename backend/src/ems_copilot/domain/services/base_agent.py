@@ -3,6 +3,7 @@ import json
 from google import genai
 from google.genai import types
 import os
+from ems_copilot.infrastructure.utils.secret_utils import get_gemini_api_key
 
 
 class BaseAgent:
@@ -11,12 +12,25 @@ class BaseAgent:
     This class provides a foundation for other agents to inherit from.
     """
 
-    def __init__(self, gemini_api_key):
+    def __init__(self, gemini_api_key=None, project_id=None):
         """
         Initialize the BaseAgent with the API key.
+        
+        Args:
+            gemini_api_key: Direct API key. If None, will be retrieved from Secret Manager.
+            project_id: Google Cloud project ID for Secret Manager access.
         """
-        self.gemini_api_key = gemini_api_key
-        self.gemini_model = os.getenv("GEMINI_MODEL")
+        # Get API key from Secret Manager if not provided directly
+        if gemini_api_key is None:
+            print(f"Getting API key from Secret Manager for project: {project_id}")
+            self.gemini_api_key = get_gemini_api_key(project_id)
+            print(f"API key retrieved: {self.gemini_api_key[:10]}..." if self.gemini_api_key else "API key is None")
+        else:
+            self.gemini_api_key = gemini_api_key
+            print(f"Using provided API key: {self.gemini_api_key[:10]}..." if self.gemini_api_key else "Provided API key is None")
+            
+        # Use a default model if GEMINI_MODEL is not set
+        self.gemini_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
         os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
 
     def call_gemini(self, user_prompt=None, system_prompt=None, functions=None, return_text=False):
@@ -33,6 +47,7 @@ class BaseAgent:
             dict or str: The response from the Gemini API or parsed text content.
         """
         # Initialize the client
+        print('initializing client with api key: ', self.gemini_api_key)
         client = genai.Client(api_key=self.gemini_api_key)
 
         # Setup config and tools only if functions are provided
@@ -72,6 +87,7 @@ class BaseAgent:
 
         # Make the API call
         try:
+            print(f"Using Gemini model: {self.gemini_model}")
             if config:
                 response = client.models.generate_content(
                     model=self.gemini_model,

@@ -7,14 +7,17 @@ import json
 import os
 import tempfile
 from google.cloud import texttospeech
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = FastAPI()
 
 
 # Initialize orchestrator agent
 orchestrator_agent = OrchestratorAgent(
-    gemini_api_key=os.getenv("GEMINI_API_KEY"),
-    firebase_credentials_path=os.getenv("FIRESTORE_CREDENTIALS_PATH")
+    project_id=os.getenv("GOOGLE_CLOUD_PROJECT")
 )
 
 # Request model

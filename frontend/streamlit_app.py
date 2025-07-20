@@ -9,6 +9,7 @@ import io
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
+from speech_to_text_component import speech_to_text_button
 
 # Load .env from project root
 load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env", override=True)
@@ -226,6 +227,14 @@ if st.button("🔊 Synthesize Speech", key="standalone_tts"):
 
 with col1:
     st.header("📡 REST API Test")
+    
+    # Speech-to-Text section
+    st.subheader("🎤 Voice Input")
+    
+    # Speech-to-text button
+    if speech_to_text_button("🎤 Record Speech", key="rest_speech_to_text", record_seconds=5):
+        # The transcribed text will be stored in session state and used directly
+        pass
     
     # Query input
     query = st.text_area(

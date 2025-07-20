@@ -15,20 +15,18 @@ class VitalsAgent(BaseAgent):
     This agent will be used to track trending patient vitals and provide information about them.
     """
 
-    def __init__(self, gemini_api_key, firebase_credentials_path, firebase_collection_name="vitals"):
+    def __init__(self, gemini_api_key=None, firebase_credentials_path=None, firebase_collection_name="vitals", project_id=None):
 
         """
         Initialize the Vitals_Agent with the API key and Gemini API URL.
         This agent will be used to track trending patient vitals and provide information about them.
         """
 
-        super().__init__(gemini_api_key)  # Initialize BaseAgent
+        super().__init__(gemini_api_key, project_id)  # Initialize BaseAgent
         self.name = "Vitals_Agent"
         self.description = "An agent that provides vitals related functionalities."
         self.firestore_db = FirestoreDB(firebase_credentials_path)
         self.conversation_history = ConversationHistory()
-
-        self.gemini_api_key = gemini_api_key
         self.system_prompt = (
             "You are a Vitals agent. Your role is to manage patient vitals and notes. "
             "When given an input or statement, analyze it for ALL vital signs mentioned and invoke the 'write_multiple_vitals' function for each vital sign found. "
@@ -130,6 +128,8 @@ class VitalsAgent(BaseAgent):
             user_prompt = f"Perform the following action: {input}. \n The current time is {current_time}."
             # First get the raw response to handle function calls
             raw_response = self.call_gemini( system_prompt=self.system_prompt, user_prompt=user_prompt, functions=functions)
+            print(f"Raw response type: {type(raw_response)}")
+            print(f"Raw response: {raw_response}")
             handle_response = self.handle_response(response=raw_response)
             
             # If we have a structured response from handle_response, return it
@@ -321,6 +321,20 @@ class VitalsAgent(BaseAgent):
         Handle the response from the Gemini API and execute the appropriate function.
         """
         try:
+            # Check if response is a string (error case)
+            if isinstance(response, str):
+                print(f"Received string response (likely error): {response}")
+                return AgentResponse(
+                    status="fail",
+                    text=f"Error from Gemini API: {response}",
+                    reason="api_error",
+                    data={"error": response},
+                    metadata={
+                        "agent": "vitals_agent",
+                        "operation": "handle_response"
+                    }
+                )
+            
             # Check if there are multiple function calls
             if not response.candidates or not response.candidates[0].content.parts:
                 return None

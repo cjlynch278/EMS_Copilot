@@ -1,10 +1,14 @@
 import os
 import json
+from dotenv import load_dotenv
 from ems_copilot.domain.services.base_agent import BaseAgent
 from ems_copilot.domain.services.gps_agent import GPSAgent
 from ems_copilot.domain.services.vitals_agent import VitalsAgent
 from ems_copilot.domain.services.triage_agent import TriageAgent
 from ems_copilot.infrastructure.database.conversation_history import ConversationHistory
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class OrchestratorAgent(BaseAgent):
@@ -13,14 +17,13 @@ class OrchestratorAgent(BaseAgent):
     Inherits from BaseAgent to handle Gemini API calls.
     """
 
-    def __init__(self, gemini_api_key, firebase_credentials_path=None):
+    def __init__(self, gemini_api_key=None, firebase_credentials_path=None, project_id=None):
         """
         Initialize the OrchestratorAgent with the API key and Gemini API URL.
         """
-        super().__init__(gemini_api_key)  # Initialize BaseAgent
+        super().__init__(gemini_api_key, project_id)  # Initialize BaseAgent
         self.name = "OrchestratorAgent"
         self.description = "An agent that orchestrates the interaction between other agents."
-        self.gemini_api_key = gemini_api_key
         
         # Use provided credentials path or fall back to environment variable
         if firebase_credentials_path is None:
@@ -30,10 +33,10 @@ class OrchestratorAgent(BaseAgent):
             
         google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY")
 
-        # Initialize agents
-        self.gps_agent = GPSAgent(gemini_api_key, google_maps_api_key)
-        self.vitals_agent = VitalsAgent(gemini_api_key, self.firebase_credentials_path)
-        self.triage_agent = TriageAgent(gemini_api_key, self.firebase_credentials_path)
+        # Initialize agents with project_id for Secret Manager access
+        self.gps_agent = GPSAgent(gemini_api_key, google_maps_api_key, project_id)
+        self.vitals_agent = VitalsAgent(gemini_api_key, self.firebase_credentials_path, project_id=project_id)
+        self.triage_agent = TriageAgent(gemini_api_key, self.firebase_credentials_path, project_id)
         #update this system prompt to stop
         self.system_prompt = "You are an orchestrator agent for an EMS system. You MUST ALWAYS use a function call to route user queries to the appropriate agent. Never respond with text directly. Use gps_agent for location/direction queries, vitals_agent for patient vitals, weather_agent for weather queries, sql_agent for database queries, and triage_agent for patient symptoms or contextual assessments (like 'what's wrong', 'assess patient', etc.). ALWAYS call one of these functions."
         self.memory = []
