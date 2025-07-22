@@ -74,6 +74,7 @@ class OrchestratorAgent(BaseAgent):
         Orchestrate the interaction by analyzing the user prompt and routing it to the appropriate agent.
         """
         self.memory.append(user_prompt)
+        # Refactor this in the future to always simply just have an 'input' paramter of what needs to be done and 
         functions = [
             {
                 "name": "gps_agent",

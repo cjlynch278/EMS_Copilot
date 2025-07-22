@@ -14,6 +14,32 @@ from speech_to_text_component import speech_to_text_button
 # Load .env from project root
 load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env", override=True)
 
+# Initialize speech-to-text component once at app startup
+if 'stt_component' not in st.session_state:
+    try:
+        from speech_to_text_component import SpeechToTextComponent
+        import subprocess
+        import os
+        
+        # Pre-authenticate with Google Cloud
+        if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+            try:
+                subprocess.run(["gcloud", "auth", "application-default", "print-access-token"], 
+                             check=True, capture_output=True)
+                st.session_state.gcloud_authenticated = True
+            except:
+                st.session_state.gcloud_authenticated = False
+                st.session_state.gcloud_error = "Google Cloud credentials not found"
+        else:
+            st.session_state.gcloud_authenticated = True
+        
+        # Initialize speech-to-text component
+        st.session_state.stt_component = SpeechToTextComponent()
+        st.session_state.stt_initialized = True
+    except Exception as e:
+        st.session_state.stt_initialized = False
+        st.session_state.stt_error = str(e)
+
 # Page configuration
 st.set_page_config(
     page_title="EMS Copilot Test Interface",
@@ -232,7 +258,7 @@ with col1:
     st.subheader("🎤 Voice Input")
     
     # Speech-to-text button
-    if speech_to_text_button("🎤 Record Speech", key="rest_speech_to_text", record_seconds=5):
+    if speech_to_text_button("🎤 Record Speech", key="rest_speech_to_text", max_seconds=30, silence_duration=2.0):
         # The transcribed text will be stored in session state and used directly
         pass
     

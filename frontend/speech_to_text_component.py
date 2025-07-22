@@ -21,18 +21,22 @@ class SpeechToTextComponent:
         self.is_recording = False
         self.frames = []
         
-    def record_audio(self, record_seconds=5, sample_rate=16000):
+    def record_audio(self, max_seconds=30, silence_threshold=0.01, silence_duration=2.0, sample_rate=16000):
         """
-        Record audio from microphone.
+        Record audio from microphone until silence is detected.
         
         Args:
-            record_seconds (int): Number of seconds to record
+            max_seconds (int): Maximum recording time in seconds
+            silence_threshold (float): Threshold for silence detection (0.0 to 1.0)
+            silence_duration (float): How long to wait in silence before stopping (seconds)
             sample_rate (int): Audio sample rate in Hz
             
         Returns:
             bytes: Audio data as bytes
         """
         try:
+            import numpy as np
+            
             # Audio recording parameters
             CHUNK = 1024
             FORMAT = pyaudio.paInt16
@@ -54,12 +58,32 @@ class SpeechToTextComponent:
             self.frames = []
             self.is_recording = True
             
-            # Record audio
-            for i in range(0, int(RATE / CHUNK * record_seconds)):
+            # Silence detection variables
+            silence_chunks = 0
+            silence_chunks_threshold = int(silence_duration * RATE / CHUNK)
+            max_chunks = int(max_seconds * RATE / CHUNK)
+            
+            # Record audio until silence or max time
+            for i in range(max_chunks):
                 if not self.is_recording:
                     break
+                    
                 data = self.stream.read(CHUNK)
                 self.frames.append(data)
+                
+                # Check for silence
+                audio_data = np.frombuffer(data, dtype=np.int16)
+                volume = np.sqrt(np.mean(audio_data**2))
+                normalized_volume = volume / 32768.0  # Normalize to 0-1
+                
+                if normalized_volume < silence_threshold:
+                    silence_chunks += 1
+                else:
+                    silence_chunks = 0
+                
+                # Stop if silence detected for long enough
+                if silence_chunks >= silence_chunks_threshold:
+                    break
             
             # Close stream
             self.stream.stop_stream()
@@ -122,70 +146,96 @@ class SpeechToTextComponent:
         if self.audio:
             self.audio.terminate()
 
-def speech_to_text_button(label="🎤 Record Speech", key="speech_to_text", record_seconds=5):
+def speech_to_text_button(label="🎤 Record Speech", key="speech_to_text", max_seconds=30, silence_duration=2.0):
     """
     Create a speech-to-text button for Streamlit.
-    Starts recording immediately when clicked.
+    Uses pre-initialized component for immediate recording.
     
     Args:
         label (str): Button label
         key (str): Unique key for the button
-        record_seconds (int): Number of seconds to record
+        max_seconds (int): Maximum recording time in seconds
+        silence_duration (float): How long to wait in silence before stopping (seconds)
         
     Returns:
         str: Transcribed text or None if cancelled/error
     """
     
+    # Initialize session state for recording status
+    if f"{key}_recording" not in st.session_state:
+        st.session_state[f"{key}_recording"] = False
+    if f"{key}_status" not in st.session_state:
+        st.session_state[f"{key}_status"] = ""
+    
     # Check if button is clicked
     if st.button(label, key=key):
-        
-        # Create placeholder for status
+        st.session_state[f"{key}_recording"] = True
+        st.session_state[f"{key}_status"] = f"🎤 Recording... Speak now! (stops after {silence_duration}s of silence)"
+        st.rerun()
+    
+    # Show status if recording
+    if st.session_state[f"{key}_recording"]:
         status_placeholder = st.empty()
-        result_placeholder = st.empty()
+        status_placeholder.info(st.session_state[f"{key}_status"])
         
         try:
-            # Check if Google Cloud credentials are set
-            if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-                # Try to use gcloud auth
-                try:
-                    import subprocess
-                    subprocess.run(["gcloud", "auth", "application-default", "print-access-token"], 
-                                 check=True, capture_output=True)
-                except:
-                    st.error("❌ Google Cloud credentials not found. Please set GOOGLE_APPLICATION_CREDENTIALS or run 'gcloud auth application-default login'")
-                    return None
+            # Check if component is initialized
+            if not st.session_state.get('stt_initialized', False):
+                st.error(f"❌ Speech-to-text not initialized: {st.session_state.get('stt_error', 'Unknown error')}")
+                st.session_state[f"{key}_recording"] = False
+                return None
             
-            # Initialize component
-            stt_component = SpeechToTextComponent()
+            # Check if Google Cloud is authenticated
+            if not st.session_state.get('gcloud_authenticated', False):
+                st.error(f"❌ Google Cloud not authenticated: {st.session_state.get('gcloud_error', 'Unknown error')}")
+                st.session_state[f"{key}_recording"] = False
+                return None
             
-            # Start recording immediately - no delay
-            status_placeholder.info(f"🎤 Recording {record_seconds} seconds... Speak now!")
-            audio_content = stt_component.record_audio(record_seconds)
+            # Use pre-initialized component
+            stt_component = st.session_state.stt_component
+            
+            # Update status to show recording
+            st.session_state[f"{key}_status"] = "🔄 Recording audio..."
+            status_placeholder.info(st.session_state[f"{key}_status"])
+            
+            # Record audio immediately
+            audio_content = stt_component.record_audio(max_seconds=max_seconds, silence_duration=silence_duration)
             
             if audio_content:
-                status_placeholder.info("🔄 Transcribing audio...")
+                st.session_state[f"{key}_status"] = "🔄 Transcribing audio..."
+                status_placeholder.info(st.session_state[f"{key}_status"])
+                
+                # Transcribe audio
                 transcript = stt_component.transcribe_audio(audio_content)
                 
                 if transcript and transcript != "No speech detected":
-                    status_placeholder.success("✅ Transcription complete!")
+                    st.session_state[f"{key}_status"] = "✅ Transcription complete!"
+                    status_placeholder.success(st.session_state[f"{key}_status"])
+                    
                     # Store in session state and automatically populate query
                     st.session_state.query_text = transcript
                     st.session_state.transcribed_text = transcript
+                    
+                    # Reset recording state
+                    st.session_state[f"{key}_recording"] = False
                     return transcript
                 else:
-                    status_placeholder.warning("❌ No speech detected. Please try again.")
+                    st.session_state[f"{key}_status"] = "❌ No speech detected. Please try again."
+                    status_placeholder.warning(st.session_state[f"{key}_status"])
+                    st.session_state[f"{key}_recording"] = False
                     return None
             else:
-                status_placeholder.error("❌ Failed to record audio.")
+                st.session_state[f"{key}_status"] = "❌ Failed to record audio."
+                status_placeholder.error(st.session_state[f"{key}_status"])
+                st.session_state[f"{key}_recording"] = False
                 return None
                 
-        except ImportError as e:
-            st.error(f"❌ Missing dependency: {e}")
-            st.info("Please install: pip install pyaudio google-cloud-speech")
-            return None
         except Exception as e:
             st.error(f"❌ Error: {e}")
+            st.session_state[f"{key}_recording"] = False
             return None
+    
+    return None
 
 def speech_to_text_with_preview(label="🎤 Record Speech", key="speech_to_text_preview", record_seconds=5):
     """
