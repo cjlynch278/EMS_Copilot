@@ -13,7 +13,7 @@ class BaseAgent:
     This class provides a foundation for other agents to inherit from.
     """
 
-    def __init__(self, gemini_api_key=None, project_id=None, agent_name):
+    def __init__(self, gemini_api_key=None, project_id=None, agent_name=None):
         """
         Initialize the BaseAgent with the API key.
         
@@ -96,18 +96,23 @@ class BaseAgent:
                 )
             )
 
+        
+
         # Add system prompt (if provided separately)
-        if system_prompt:
-            contents.append(
-                types.Content(
-                    role="user",
-                    parts=[
-                        types.Part(
-                            text=system_prompt
-                        )
-                    ]
-                )
+        # Does this work?
+        # Simply prepend the given system prompt to the the global prompt.
+        system_prompt = self.global_system_prompt + system_prompt
+
+        contents.append(
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part(
+                        text=system_prompt
+                    )
+                ]
             )
+        )
 
         # Make the API call
         try:
@@ -133,6 +138,9 @@ class BaseAgent:
                 return self.parse_gemini_response(response)
             else:
                 return response
+
+
+        # Possibly add functionality to store the conversation in conversation history.
 
         except Exception as e:
             print(f"Error calling Gemini API: {e}")

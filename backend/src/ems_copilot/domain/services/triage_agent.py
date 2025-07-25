@@ -31,8 +31,6 @@ class TriageAgent(BaseAgent):
             firebase_credentials_path = os.getenv("FIRESTORE_CREDENTIALS_PATH")
         self.firestore_db = FirestoreDB(firebase_credentials_path)
         
-        # Initialize conversation history
-        self.conversation_history = ConversationHistory()
         
         # Triage system prompt
         self.system_prompt = """You are an expert EMS triage agent. Your role is to:
@@ -77,8 +75,9 @@ Try to be relatively concise in your response. If you notice something severe, y
             self.conversation_history.search_conversations(user_query)
 
             # Build simple prompt
+            # Add past 5 conversation histories
             prompt = f"""Here is the relevant conversation history: {self.conversation_history.search_conversations(user_query)}.
-            please ferform a triage of the patient.
+            please perform a triage of the patient.
             Here is the user query: {user_query}"""
             
             # Call Gemini for triage assessment
@@ -102,9 +101,7 @@ Try to be relatively concise in your response. If you notice something severe, y
             return error_msg
     
     
-    
-   
-    
+
     def call_triage_agent(self, user_query: str = None) -> str:
         """
         Main method to call the triage agent (for compatibility with orchestrator).
